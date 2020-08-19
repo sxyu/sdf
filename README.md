@@ -32,6 +32,20 @@ Note SDF is > 0 inside and < 0 outside mesh.
 By default 'robust' mode is used. `sdf::SDF sdf(verts, faces, false)` to disable.
 The SDF computation will be slightly faster but may be *incorrect* if the mesh has self-intersections or incorrect winding (not CCW) on some faces.
 
+### Python
+To install Python binding, use `pip install .`
+You may need to first install pybind11 from https://github.com/pybind/pybind11.
+Usage example:
+```python
+from sdf import SDF
+import trimesh
+o = trimesh.load('some.obj')
+f = SDF(o.vertices, o.faces);
+origin_sdf = f([0, 0, 0])
+origin_contained = f.contains([0, 0, 0])
+origin_nn = f.nn([0, 0, 0])
+other_sdf = f([[0, 0, 0],[1,1,1],[0.1,0.2,0.2]])
+```
 
 ## Dependencies
 - Eigen 3
