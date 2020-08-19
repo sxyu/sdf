@@ -154,7 +154,7 @@ struct SDF::Impl {
         Vector result(points.rows());
         result.setConstant(std::numeric_limits<float>::max());
 
-        static const float DIST_EPS = 1e-5;
+        const float DIST_EPS = robust ? 0.f : 1e-5f;
 
         maybe_parallel_for(
             [&](int i) {
