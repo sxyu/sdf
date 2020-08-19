@@ -6,16 +6,20 @@ Given a triangle mesh and a set of points, this library supports:
 3. Computing nearest neighbor vertex index for each point: `sdf.nn(points)`
 All operations are CPU-only and parallelized.
 
-![Screenshot-human](https://github.com/sxyu/sdf/blob/master/readme-img/human.gif?raw=true)
+<img src="https://github.com/sxyu/sdf/blob/master/readme-img/human.gif"
+    width="400">
 
 Robustness under self-intersections:
-![Screenshot-smpl](https://github.com/sxyu/sdf/blob/master/readme-img/smpl.png?raw=true)
+<img src="https://github.com/sxyu/sdf/blob/master/readme-img/smpl.png"
+    width="400">
 
 Reasonable result for non-watertight mesh with multiple parts:
-![Screenshot-teapot](https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif?raw=true)
+<img src="https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif"
+    width="400">
 
 Reasonable result for voxel grid
-![Screenshot-voxel](https://github.com/sxyu/sdf/blob/master/readme-img/voxel.png?raw=true)
+<img src="https://github.com/sxyu/sdf/blob/master/readme-img/voxel.png"
+    width="400">
 
 ## Usage
 ```cpp
