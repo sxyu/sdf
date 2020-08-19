@@ -50,8 +50,8 @@ struct KDTreeEigenRefAdaptor {
         typename Distance::template traits<num_t, self_t>::distance_t metric_t;
     typedef KDTreeSingleIndexAdaptor<metric_t, self_t, DIM, IndexType> index_t;
     index_t* index;
-    KDTreeEigenRefAdaptor(const Eigen::Ref<const MatrixType> mat,
-                          const int leaf_max_size = 10)
+    explicit KDTreeEigenRefAdaptor(const Eigen::Ref<const MatrixType> mat,
+                                   const int leaf_max_size = 10)
         : m_data_matrix(mat), leaf_max_size(leaf_max_size) {
         index = new index_t(
             DIM, *this,
@@ -59,6 +59,7 @@ struct KDTreeEigenRefAdaptor {
         index->buildIndex();
     }
     ~KDTreeEigenRefAdaptor() { delete index; }
+
     // Rebuild the KD tree from scratch. Call if data updated.
     void rebuild() {
         delete index;
@@ -68,7 +69,7 @@ struct KDTreeEigenRefAdaptor {
         index->buildIndex();
     }
 
-    const Eigen::Ref<const MatrixType> m_data_matrix;
+    Eigen::Ref<const MatrixType> m_data_matrix;
     const int leaf_max_size;
     /// Query for the num_closest closest points to a given point (entered as
     /// query_point[0:dim-1]).
@@ -312,9 +313,16 @@ struct SDF::Impl {
 };
 
 SDF::SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
-         bool robust)
-    : robust(robust),
-      p_impl(std::make_unique<SDF::Impl>(verts, faces, robust)) {}
+         bool robust, bool copy)
+    : robust(robust), own_data(copy) {
+    if (copy) {
+        owned_verts = verts;
+        owned_faces = faces;
+        p_impl = std::make_unique<SDF::Impl>(owned_verts, owned_faces, robust);
+    } else {
+        p_impl = std::make_unique<SDF::Impl>(verts, faces, robust);
+    }
+}
 
 SDF::~SDF() = default;
 
@@ -336,8 +344,22 @@ Eigen::Ref<const Eigen::Matrix<float, 6, 1>> SDF::aabb() const {
 }
 
 Eigen::Ref<const Triangles> SDF::faces() const { return p_impl->faces; }
+Eigen::Ref<Triangles> SDF::faces_mutable() {
+    if (!own_data) {
+        std::cerr
+            << "ERROR: 'faces' is non mutable, construct with copy=True\n";
+    }
+    return owned_faces;
+}
 
 Eigen::Ref<const Points> SDF::verts() const { return p_impl->verts; }
+Eigen::Ref<Points> SDF::verts_mutable() {
+    if (!own_data) {
+        std::cerr
+            << "ERROR: 'verts' is non mutable, construct with copy=True\n";
+    }
+    return owned_verts;
+}
 
 Vector SDF::operator()(Eigen::Ref<const Points> points, bool trunc_aabb) {
     return p_impl->calc(points, trunc_aabb);

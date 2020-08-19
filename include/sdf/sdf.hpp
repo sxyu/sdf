@@ -133,10 +133,11 @@ struct SDF {
     // @param faces mesh faces. The contents of this matrix should not be
     // modified for the lifetime of this instance.
     // @param robust whether to use robust mode. In robust mode,
+    // @param copy whether to make a copy of the data instead of referencing it
     // SDF/containment computation is robust to mesh self-intersections and
     // facewinding but is slower.
     SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
-        bool robust = true);
+        bool robust = true, bool copy = false);
     ~SDF();
 
     /*** PRIMARY INTERFACE ***/
@@ -196,14 +197,23 @@ struct SDF {
 
     // Get faces
     Eigen::Ref<const Triangles> faces() const;
+    Eigen::Ref<Triangles> faces_mutable();
 
     // Get verts
     Eigen::Ref<const Points> verts() const;
+    Eigen::Ref<Points> verts_mutable();
 
     // Whether SDF is in robust mode
     const bool robust;
 
+    // Whether we own data
+    const bool own_data;
+
    private:
+    // Optional owned data
+    Points owned_verts;
+    Triangles owned_faces;
+
     struct Impl;
     std::experimental::propagate_const<std::unique_ptr<Impl>> p_impl;
 };

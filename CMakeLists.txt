@@ -46,15 +46,10 @@ set( DEPENDENCIES )
 
 find_package(Threads REQUIRED)
 
-if ( SDF_USE_SYSTEM_EIGEN )
+if (SDF_USE_SYSTEM_EIGEN)
     find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-    if (TARGET Eigen3::Eigen)
-        message(STATUS "Using system Eigen")
-        set (DEPENDENCIES ${DEPENDENCIES} Eigen3::Eigen)
-    else()
-        message(STATUS "System Eigen > 3.3 not found, using vendor Eigen")
-        include_directories(${EIGEN_DIR})
-    endif()
+    message(STATUS "Using system Eigen")
+    set(DEPENDENCIES ${DEPENDENCIES} Eigen3::Eigen)
 else()
     # Set EIGEN_INCLUDE_DIR manually
     include_directories(${EIGEN_INCLUDE_DIR})
@@ -94,6 +89,11 @@ endif ()
 if (${pybind11_FOUND} AND ${SDF_BUILD_PYTHON})
     pybind11_add_module(pysdf SHARED ${SDF_SOURCES} pybind.cpp)
     set_target_properties(pysdf PROPERTIES OUTPUT_NAME sdf)
+    target_include_directories(
+        pysdf PUBLIC
+        $<BUILD_INTERFACE:${INCLUDE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
     target_link_libraries(pysdf PRIVATE ${DEPENDENCIES})
 endif ()
 

@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
 
     // Create SDF instance from loaded mesh (robust mode)
     sdf::SDF sdf(dummy_mesh.verts_pos(), dummy_mesh.faces);
+    std::cout << sdf.faces() << "\n";
 
     // Cross section visualization parameters
     float csection_z = 0.0f;

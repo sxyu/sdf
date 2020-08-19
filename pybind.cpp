@@ -4,6 +4,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/eigen.h>
 #include <iostream>
+#include <thread>
 
 namespace py = pybind11;
 using namespace sdf;
@@ -13,8 +14,9 @@ PYBIND11_MODULE(sdf, m) {
         R"pbdoc(SDF: Convert triangle mesh to continuous signed distance function)pbdoc";
     py::class_<SDF>(m, "SDF")
         .def(py::init<Eigen::Ref<const Points>, Eigen::Ref<const Triangles>,
-                      bool>(),
-             py::arg("verts"), py::arg("faces"), py::arg("robust") = true)
+                      bool, bool>(),
+             py::arg("verts"), py::arg("faces"), py::arg("robust") = true,
+             py::arg("copy") = true)
         .def("__call__", &SDF::operator(),
              "Compute SDF on points (positive iff inside)", py::arg("points"),
              py::arg("trunc_aabb") = false)
@@ -34,14 +36,49 @@ PYBIND11_MODULE(sdf, m) {
              "ADVANCED: Get matrix points for a face (3,3). Each row is a "
              "point.")
         .def("aabb", &SDF::aabb, "ADVANCED: Get AABB of entire mesh.")
-        .def("faces", &SDF::faces, "Mesh faces passed to SDF constructor")
-        .def("verts", &SDF::verts, "Mesh verticess passed to SDF constructor")
-        .def_property_readonly("robust",
-                               [](const SDF& sdf) { return sdf.robust; })
+        .def_property_readonly("faces", &SDF::faces,
+                               "Mesh faces passed to SDF constructor")
+        .def_property_readonly("verts", &SDF::verts,
+                               "Mesh vertices passed to SDF constructor")
+        .def_property(
+            "faces_mutable", &SDF::faces_mutable,
+            [](SDF& sdf, Eigen::Ref<const Triangles> val) {
+                sdf.faces_mutable() = val;
+            },
+            "Mesh faces passed to SDF constructor")
+        .def_property(
+            "verts_mutable", &SDF::verts_mutable,
+            [](SDF& sdf, Eigen::Ref<const Points> val) {
+                sdf.verts_mutable() = val;
+            },
+            "Mesh vertices passed to SDF constructor")
+        .def_property(
+            "vertices_mutable", &SDF::verts_mutable,
+            [](SDF& sdf, Eigen::Ref<const Points> val) {
+                sdf.verts_mutable() = val;
+            },
+            "Mesh vertices passed to SDF constructor")
+        .def_property_readonly("vertices", &SDF::verts,
+                               "Mesh vertices passed to SDF constructor (alias "
+                               "for verts for trimesh compatibility)")
+        .def_property_readonly(
+            "robust", [](const SDF& sdf) { return sdf.robust; },
+            "Whether SDF is in robust mode")
+        .def_property_readonly(
+            "own_data", [](const SDF& sdf) { return sdf.own_data; },
+            "Whether SDF owns verts/faces data (constructed with copy=True), "
+            "so you can change them with verts_mutable/faces_mutable")
+        .def_property_readonly_static(
+            "num_threads",
+            [](const py::object& _) {
+                return std::thread::hardware_concurrency();
+            },
+            "Max number of threads")
         .def("__repr__", [](const SDF& sdf) {
-            return "<sdf.SDF: " + std::to_string(sdf.verts().rows()) +
-                   " verts, " + std::to_string(sdf.faces().rows()) + " faces" +
-                   (sdf.robust ? ", robust" : "") + ">";
+            return "<sdf.SDF(verts.shape=(" +
+                   std::to_string(sdf.verts().rows()) + ", 3), faces.shape=(" +
+                   std::to_string(sdf.faces().rows()) +
+                   ", 3), robust=" + (sdf.robust ? "True" : "False") + ")>";
         });
     py::module m_util = m.def_submodule("util");
     m_util

@@ -46,6 +46,14 @@ origin_contained = f.contains([0, 0, 0])
 origin_nn = f.nn([0, 0, 0])
 other_sdf = f([[0, 0, 0],[1,1,1],[0.1,0.2,0.2]])
 ```
+To modify the vertices/faces, you can use
+`f.vertices_mutable` and `f.faces_mutable`.
+
+#### A word about copying
+By default, `SDF(verts, faces)` will copy the vertices/faces to ensure memory safety,
+especially since the arguments may be automatically converted.
+Use `SDF(verts, faces, copy=False)` to prevent this, if you are sure verts/faces are
+of types np.float32/np.uint32 respectively and will not be destroyed before the SDF instance.
 
 ## Dependencies
 - Eigen 3
