@@ -9,7 +9,7 @@ All operations are CPU-only and parallelized.
 ![Screenshot-teapot](https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif?raw=true)
 ![Screenshot-human](https://github.com/sxyu/sdf/blob/master/readme-img/human.gif?raw=true)
 
-Robustness under self-occlusion:
+Robustness under self-intersections:
 ![Screenshot-smpl](https://github.com/sxyu/sdf/blob/master/readme-img/smpl.png?raw=true)
 
 ## Usage
