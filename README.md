@@ -10,14 +10,17 @@ All operations are CPU-only and parallelized.
     width="400">
 
 Robustness under self-intersections:
+
 <img src="https://github.com/sxyu/sdf/blob/master/readme-img/smpl.png"
     width="400">
 
 Reasonable result for non-watertight mesh with multiple parts:
+
 <img src="https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif"
     width="400">
 
 Reasonable result for voxel grid
+
 <img src="https://github.com/sxyu/sdf/blob/master/readme-img/voxel.png"
     width="400">
 
