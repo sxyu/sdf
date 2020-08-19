@@ -37,6 +37,13 @@ Note SDF is > 0 inside and < 0 outside mesh.
 By default 'robust' mode is used. `sdf::SDF sdf(verts, faces, false)` to disable.
 The SDF computation will be slightly faster but may be *incorrect* if the mesh has self-intersections or incorrect winding (not CCW) on some faces.
 
+#### Warning
+Robust mode uses raytracing. Currently the ray tracing has the same limitation as embree,
+that is when ray exactly hits an edge the intersection gets double counted, inverting the sign
+of the distance function. 
+This is unlikely for random points but can frequently occur especially if points and mesh vertices are both taken from a grid.
+In practice, we trace 3 rays and take the majority sign to decrease the likelihood of this occurring.
+
 ### Python
 To install Python binding, use `pip install .`
 You may need to first install pybind11 from https://github.com/pybind/pybind11.
@@ -54,7 +61,7 @@ other_sdf = f([[0, 0, 0],[1,1,1],[0.1,0.2,0.2]])
 To modify the vertices/faces, you can use
 `f.vertices_mutable` and `f.faces_mutable`.
 
-#### A word about copying
+#### Copying
 By default, `SDF(verts, faces)` will copy the vertices/faces to ensure memory safety,
 especially since the arguments may be automatically converted.
 Use `SDF(verts, faces, copy=False)` to prevent this, if you are sure verts/faces are
