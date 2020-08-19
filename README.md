@@ -6,16 +6,8 @@ Given a triangle mesh and a set of points, this library supports:
 3. Computing nearest neighbor vertex index for each point: `sdf.nn(points)`
 All operations are CPU-only and parallelized.
 
-## Dependencies
-- Eigen 3
-- Vendored (no installation needed):
-    - nanoflann
-    - nushoin/RTree
-- Optional:
-    - meshview https://github.com/sxyu/meshview for demo
-
-## Build + Install
-`mkdir build && cmake .. && make -j4 && sudo make install`
+![Screenshot-teapot](https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif?raw=true)
+![Screenshot-human](https://github.com/sxyu/sdf/blob/master/readme-img/human.gif?raw=true)
 
 ## Usage
 ```cpp
@@ -36,6 +28,18 @@ Note SDF is > 0 inside and < 0 outside mesh.
 ### Robust mode
 By default 'robust' mode is used. `sdf::SDF sdf(verts, faces, false)` to disable.
 The SDF computation will be slightly faster but may be *incorrect* if the mesh has self-intersections or incorrect winding (not CCW) on some faces.
+
+
+## Dependencies
+- Eigen 3
+- Vendored (no installation needed):
+    - nanoflann
+    - nushoin/RTree
+- Optional:
+    - meshview https://github.com/sxyu/meshview for demo
+
+## Build + Install
+`mkdir build && cmake .. && make -j4 && sudo make install`
 
 ## Demo
 A demo program can optionally be build if meshview is installed.
