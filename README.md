@@ -9,6 +9,9 @@ All operations are CPU-only and parallelized.
 ![Screenshot-teapot](https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif?raw=true)
 ![Screenshot-human](https://github.com/sxyu/sdf/blob/master/readme-img/human.gif?raw=true)
 
+Robustness under self-occlusion:
+![Screenshot-smpl](https://github.com/sxyu/sdf/blob/master/readme-img/smpl.png?raw=true)
+
 ## Usage
 ```cpp
 sdf::SDF sdf(verts, faces); // verts (n, 3) float, faces (m, 3) float
