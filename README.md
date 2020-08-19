@@ -14,6 +14,9 @@ Robustness under self-intersections:
 Reasonable result for non-watertight mesh with multiple parts:
 ![Screenshot-teapot](https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif?raw=true)
 
+Reasonable result for voxel grid
+![Screenshot-voxel](https://github.com/sxyu/sdf/blob/master/readme-img/voxel.png?raw=true)
+
 ## Usage
 ```cpp
 sdf::SDF sdf(verts, faces); // verts (n, 3) float, faces (m, 3) float
@@ -81,7 +84,7 @@ df::SDF sdf(verts, faces)
 
 All benchmarks are ran on a 6-core CPU (Intel i7 8th generation, high-performance laptop)
 
-| Model vertices | trimesh contain eval/s (numpy) | trimesh pyembree contain eval/s (pyembree) | our SDF evals / s (robust) | our SDF evals / s (non-robust)  |
+| Model vertices | trimesh contains eval/s (numpy) | trimesh contains eval/s (pyembree) | our SDF evals / s (robust) | our SDF evals / s (non-robust)  |
 | -------------   | ------------- | ------------- | ------------- | ------------- |
 | 3241            | 29,555| 237,855 | 5,077,725   | 8,187,117 |
 | 49246           | 6,835 | 62,058  | 2,971,137   | 4,407,045 |
