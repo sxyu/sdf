@@ -4,6 +4,7 @@
 #include <meshview/meshview_imgui.hpp>
 
 #include <iostream>
+#include <random>
 #include <Eigen/Geometry>
 
 #include <chrono>
@@ -51,12 +52,18 @@ int main(int argc, char** argv) {
     const float FLAT_CLOUD_RADIUS_X = 1.0, FLAT_CLOUD_RADIUS_Y = 1.4;
     const float FLAT_CLOUD_STEP_X = FLAT_CLOUD_RADIUS_X * 2 / FLAT_CLOUD_DIM;
     const float FLAT_CLOUD_STEP_Y = FLAT_CLOUD_RADIUS_Y * 2 / FLAT_CLOUD_DIM;
+
+    thread_local std::mt19937 rg{std::random_device{}()};
+    std::normal_distribution<float> gaussian(0.0f, 0.001f);
+
     Points _pts_flat(FLAT_CLOUD_DIM * FLAT_CLOUD_DIM, 3);
     for (int i = 0; i < FLAT_CLOUD_DIM; ++i) {
         float y = -FLAT_CLOUD_RADIUS_Y + FLAT_CLOUD_STEP_Y * i;
         for (int j = 0; j < FLAT_CLOUD_DIM; ++j) {
             float x = -FLAT_CLOUD_RADIUS_X + FLAT_CLOUD_STEP_X * j;
-            _pts_flat.row(i * FLAT_CLOUD_DIM + j) << x, y, 0.f;
+            // Perturb to avoid grid-locked ray trace precision problem
+            _pts_flat.row(i * FLAT_CLOUD_DIM + j) << x + gaussian(rg),
+                y + gaussian(rg), gaussian(rg);
         }
     }
 
@@ -82,7 +89,7 @@ int main(int argc, char** argv) {
                     .toRotationMatrix();
         }
         verts.noalias() = verts_initial;
-        verts.rightCols<1>().setConstant(csection_z);
+        verts.array().rightCols<1>() += csection_z;
         verts *= rotation.transpose();
         _BEGIN_PROFILE;
         Eigen::VectorXf verts_sdf = sdf(verts);
