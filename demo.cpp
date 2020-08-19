@@ -77,6 +77,9 @@ int main(int argc, char** argv) {
     const float MAX_DISTANCE_FUNC = 0.09f;
     bool updated = false;
 
+    // Color by containment only
+    bool contains_only = false;
+
     // Update the cross section point cloud
     auto update = [&]() {
         const float norm = csection_axisangle.norm();
@@ -95,9 +98,10 @@ int main(int argc, char** argv) {
         Eigen::VectorXf verts_sdf = sdf(verts);
         _PROFILE(compute SDF);
         for (size_t i = 0; i < verts.rows(); ++i) {
-            float t =
-                1.f - std::min(std::abs(verts_sdf[i]), MAX_DISTANCE_FUNC) *
-                          (1.f / MAX_DISTANCE_FUNC);
+            float t = contains_only ? 1.0f
+                                    : (1.f - std::min(std::abs(verts_sdf[i]),
+                                                      MAX_DISTANCE_FUNC) *
+                                                 (1.f / MAX_DISTANCE_FUNC));
 
             auto rgb = flat_cloud.verts_rgb().row(i);
             rgb[0] = (verts_sdf[i] < 0) ? 0.0f : 1.0f;
@@ -122,7 +126,6 @@ int main(int argc, char** argv) {
             if (action == meshview::input::Action::press) {
                 if (key == 'M') {
                     dummy_mesh.enabled = !dummy_mesh.enabled;
-                    std::cout << dummy_mesh.enabled << "\n";
                 }
             }
         }
@@ -153,8 +156,15 @@ int main(int argc, char** argv) {
             update();
         }
         ImGui::TextUnformatted("Tip: press j,k to adjust cross section z");
+
         if (ImGui::SliderFloat3("cross sec rot##slideflatz",
                                 csection_axisangle.data(), -3.14f, 3.14f)) {
+            update();
+        }
+
+        ImGui::Checkbox("Show mesh", &dummy_mesh.enabled);
+        ImGui::Checkbox("Wireframe mesh", &viewer.wireframe);
+        if (ImGui::Checkbox("Containment only", &contains_only)) {
             update();
         }
 
