@@ -283,32 +283,35 @@ struct SDF::Impl {
     // Only to be used in robust mode
     float _raycast_z(
         Eigen::Ref<const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>> point) {
-        Eigen::Matrix<float, 1, 3, Eigen::RowMajor> aabb_min, aabb_max;
-
-        float ans = -1.0f;
-        auto check_face = [&](int faceid) {
-            auto face2d = face_points.block<3, 2>(faceid * 3, 0);
-            if (face_normal.row(faceid).dot(
-                    point - face_points.row(faceid * 3)) <= 0.f &&
-                util::point_in_tri_2d<float>(point.head<2>(), face2d)) {
-                ans = 1.f;
-                return false;
-            }
-            return true;
-        };
-
-        aabb_min.noalias() = point;
-        aabb_max.head<2>().noalias() = point.head<2>();
-        aabb_max[2] = std::numeric_limits<float>::max();
-        rtree.Search(aabb_min.data(), aabb_max.data(), check_face);
-
-        if (ans > 0.f) {
-            ans = -1.f;
-            aabb_max[2] = point[2];
-            aabb_min[2] = -std::numeric_limits<float>::max();
+        auto raycast = [&](int ax_idx, int ax_dir) {
+            Eigen::Matrix<float, 1, 3, Eigen::RowMajor> aabb_min, aabb_max;
+            float ans = -1.f;
+            int ax_begin = (ax_idx == 0) ? 1 : 0;
+            auto check_face = [&](int faceid) -> bool {
+                auto face2d = face_points.block<3, 2>(faceid * 3, ax_begin);
+                auto normal = face_normal.row(faceid);
+                if (normal.dot(point - face_points.row(faceid * 3)) *
+                            normal[ax_idx] * ax_dir <=
+                        0.f &&
+                    util::point_in_tri_2d<float>(point.segment<2>(ax_begin),
+                                                 face2d)) {
+                    ans = -ans;
+                }
+                return true;
+            };
+            aabb_min.noalias() = point;
+            aabb_max.noalias() = point;
+            if (ax_dir > 0)
+                aabb_max[ax_idx] = std::numeric_limits<float>::max();
+            else
+                aabb_min[ax_idx] = -std::numeric_limits<float>::max();
             rtree.Search(aabb_min.data(), aabb_max.data(), check_face);
-        }
-        return ans;
+            return ans;
+        };
+        float ans_1 = raycast(0, 1);
+        float ans_2 = raycast(2, -1);
+        float ans_3 = raycast(2, 1);
+        return (ans_1 + ans_2 + ans_3) > 0.f ? 1.0f : -1.0f;
     }
 };
 

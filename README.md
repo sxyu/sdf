@@ -6,11 +6,13 @@ Given a triangle mesh and a set of points, this library supports:
 3. Computing nearest neighbor vertex index for each point: `sdf.nn(points)`
 All operations are CPU-only and parallelized.
 
-![Screenshot-teapot](https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif?raw=true)
 ![Screenshot-human](https://github.com/sxyu/sdf/blob/master/readme-img/human.gif?raw=true)
 
 Robustness under self-intersections:
 ![Screenshot-smpl](https://github.com/sxyu/sdf/blob/master/readme-img/smpl.png?raw=true)
+
+Reasonable result for non-watertight mesh with multiple parts:
+![Screenshot-teapot](https://github.com/sxyu/sdf/blob/master/readme-img/teapot.gif?raw=true)
 
 ## Usage
 ```cpp
@@ -79,12 +81,11 @@ df::SDF sdf(verts, faces)
 
 All benchmarks are ran on a 6-core CPU (Intel i7 8th generation, high-performance laptop)
 
-| Model vertices  | SDF evals / s (robust) | SDF evals / s (non-robust) |
-| ------------- | ------------- | ------------- |
-| 3241            | 6172554.4     | 8187116.6
-| 6890            | 6026525.4     | 8227800.2
-| 49246           | 3786387.2     | 4407045.0
-| 179282          | 1884640.5     | 1987869.3
+| Model vertices | trimesh contain eval/s (numpy) | trimesh pyembree contain eval/s (pyembree) | our SDF evals / s (robust) | our SDF evals / s (non-robust)  |
+| -------------   | ------------- | ------------- | ------------- | ------------- |
+| 3241            | 29,555| 237,855 | 5,077,725   | 8,187,117 |
+| 49246           | 6,835 | 62,058  | 2,971,137   | 4,407,045 |
+| 179282          | 1,301 | 20,157  | 1,672,859   | 1,987,869 |
 
 ## License
 Apache 2.0

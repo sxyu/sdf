@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
 
     // Create SDF instance from loaded mesh (robust mode)
     sdf::SDF sdf(dummy_mesh.verts_pos(), dummy_mesh.faces);
-    std::cout << sdf.faces() << "\n";
+    std::cout << sdf.verts().rows() << " verts\n";
 
     // Cross section visualization parameters
     float csection_z = 0.0f;
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     csection_axisangle.setZero();
 
     // Generate flat point cloud, for visualizing a cross-section of the SDF
-    const int FLAT_CLOUD_DIM = 400;
+    const int FLAT_CLOUD_DIM = 1000;
     const float FLAT_CLOUD_RADIUS_X = 1.0, FLAT_CLOUD_RADIUS_Y = 1.4;
     const float FLAT_CLOUD_STEP_X = FLAT_CLOUD_RADIUS_X * 2 / FLAT_CLOUD_DIM;
     const float FLAT_CLOUD_STEP_Y = FLAT_CLOUD_RADIUS_Y * 2 / FLAT_CLOUD_DIM;
