@@ -10,16 +10,31 @@ print('Trimesh:', teapot)
 print('Trimesh ray:', teapot.ray)
 print('SFD threads:', SDF.num_threads)
 
-rand_points = np.random.randn(10000, 3)
+NUM_POINTS = 1000
+rand_points = np.random.randn(NUM_POINTS, 3)
 import time
 start_time = time.time()
 cont = teapot_sdf.contains(rand_points)
 end_time = time.time()
-print('SDF:', end_time - start_time)
+print('SDF.contains:', end_time - start_time)
 
 start_time = time.time()
 cont_tm = teapot.contains(rand_points)
 end_time = time.time()
-print('Trimesh:', end_time - start_time)
+print('Trimesh.contains:', end_time - start_time)
 
-print(len((cont != cont_tm).nonzero()[0]), 'disagreements')
+start_time = time.time()
+sdf = teapot_sdf(rand_points)
+end_time = time.time()
+print('SDF:', end_time - start_time)
+
+start_time = time.time()
+sdf_tm = trimesh.proximity.signed_distance(teapot, rand_points)
+end_time = time.time()
+print('Trimesh SDF:', end_time - start_time)
+
+print(sdf[:10])
+print(sdf_tm[:10])
+
+print(len((cont != cont_tm).nonzero()[0]), 'contain disagreements')
+print(np.sum(np.abs(sdf - sdf_tm)) / NUM_POINTS, 'average SDF difference')

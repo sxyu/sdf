@@ -165,7 +165,7 @@ struct SDF::Impl {
                 auto point = points.row(i);
 
                 float sign;
-                if (robust) sign = _raycast_z(point);
+                if (robust) sign = _raycast(point);
 
                 float& min_dist = result[i];
                 if (trunc_aabb) {
@@ -198,6 +198,7 @@ struct SDF::Impl {
                         avg_normal.noalias() += normal;
                     }
                 }
+                min_dist = std::sqrt(min_dist);
                 if (robust) {
                     min_dist *= sign;
                 } else if (avg_normal.dot(point - verts.row(neighb_index)) >
@@ -215,7 +216,7 @@ struct SDF::Impl {
         if (robust) {
             Eigen::Matrix<bool, Eigen::Dynamic, 1> result(points.rows());
             maybe_parallel_for(
-                [&](int i) { result[i] = _raycast_z(points.row(i)) >= 0.0f; },
+                [&](int i) { result[i] = _raycast(points.row(i)) >= 0.0f; },
                 points.rows());
             return result;
         } else {
@@ -281,37 +282,52 @@ struct SDF::Impl {
     RTree<int, float, 3> rtree;
 
     // Only to be used in robust mode
-    float _raycast_z(
+    float _raycast(
         Eigen::Ref<const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>> point) {
-        auto raycast = [&](int ax_idx, int ax_dir) {
+        auto raycast = [&](int ax_idx, int ax_dir) -> float {
             Eigen::Matrix<float, 1, 3, Eigen::RowMajor> aabb_min, aabb_max;
-            float ans = -1.f;
-            int ax_begin = (ax_idx == 0) ? 1 : 0;
+            // int idx_1 = (ax_idx == 0) ? 1 : 0;
+            // int idx_2 = (ax_idx == 2) ? 1 : 2;
+            int hits = 0;
+            int ax_offs = ax_idx == 0 ? 1 : 0;
+
             auto check_face = [&](int faceid) -> bool {
-                auto face2d = face_points.block<3, 2>(faceid * 3, ax_begin);
                 auto normal = face_normal.row(faceid);
                 if (normal.dot(point - face_points.row(faceid * 3)) *
-                            normal[ax_idx] * ax_dir <=
-                        0.f &&
-                    util::point_in_tri_2d<float>(point.segment<2>(ax_begin),
-                                                 face2d)) {
-                    ans = -ans;
+                        normal[ax_idx] * ax_dir <=
+                    0.f) {
+                    // Eigen::Matrix<float, 1, 2, Eigen::RowMajor>
+                    //     point2d_tmp;
+                    // point2d_tmp[0] = point[idx_1];
+                    // point2d_tmp[1] = point[idx_2];
+
+                    Eigen::Ref<Eigen::Matrix<float, 3, 2, Eigen::RowMajor>>
+                        face2d_tmp =
+                            face_points.block<3, 2>(faceid * 3, ax_offs);
+                    // face2d_tmp.leftCols<1>().noalias() =
+                    //     face_points.block<3, 1>(faceid * 3, idx_1);
+                    // face2d_tmp.rightCols<1>().noalias() =
+                    //     face_points.block<3, 1>(faceid * 3, idx_2);
+
+                    if (util::point_in_tri_2d<float>(point.segment<2>(ax_offs),
+                                                     face2d_tmp)) {
+                        hits ^= 1;
+                    }
                 }
                 return true;
             };
             aabb_min.noalias() = point;
             aabb_max.noalias() = point;
             if (ax_dir > 0)
-                aabb_max[ax_idx] = std::numeric_limits<float>::max();
+                aabb_max[ax_idx] = aabb[ax_idx + 3];
             else
-                aabb_min[ax_idx] = -std::numeric_limits<float>::max();
+                aabb_min[ax_idx] = aabb[ax_idx];
             rtree.Search(aabb_min.data(), aabb_max.data(), check_face);
-            return ans;
+            return hits ? 1.f : -1.f;
         };
-        float ans_1 = raycast(0, 1);
-        float ans_2 = raycast(2, -1);
-        float ans_3 = raycast(2, 1);
-        return (ans_1 + ans_2 + ans_3) > 0.f ? 1.0f : -1.0f;
+        Eigen::Matrix<float, 3, 1> ans;
+        ans << raycast(0, 1), raycast(2, 1), raycast(2, -1);
+        return ans.sum() > 0.f ? 1.0f : -1.0f;
     }
 };
 

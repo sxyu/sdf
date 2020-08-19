@@ -26,15 +26,16 @@ int main(int argc, char** argv) {
                      "simple OBJ file)\n";
         return 0;
     }
-    // Use mesh to load OBJ but don't actually show it
-    meshview::Mesh dummy_mesh(argv[1]);
+    // Create meshview viewer
+    meshview::Viewer viewer;
+    viewer.wireframe = true;
+
+    // Load obj
+    meshview::Mesh& dummy_mesh = viewer.add_mesh(argv[1]);
     if (dummy_mesh.verts_pos().rows() == 0) {
         std::cerr << "Failed to load " << argv[1] << "\n";
         return 1;
     }
-
-    // Create meshview viewer
-    meshview::Viewer viewer;
 
     // Create SDF instance from loaded mesh (robust mode)
     sdf::SDF sdf(dummy_mesh.verts_pos(), dummy_mesh.faces);
@@ -62,15 +63,11 @@ int main(int argc, char** argv) {
     // Add planar cross section point cloud
     auto& flat_cloud = viewer.add_point_cloud(_pts_flat, 0.f, 1.f, 0.f);
 
-    // Add mesh as point cloud
-    auto& mesh_cloud =
-        viewer.add_point_cloud(dummy_mesh.verts_pos(), 0.7f, 0.7f, 0.7f);
-
     // Make a backup of verts to allow transformations
     Points verts_initial = flat_cloud.verts_pos();
     auto verts = flat_cloud.verts_pos();
 
-    const float MAX_DISTANCE_FUNC = 0.0075f;
+    const float MAX_DISTANCE_FUNC = 0.09f;
     bool updated = false;
 
     // Update the cross section point cloud
@@ -113,6 +110,13 @@ int main(int argc, char** argv) {
                 csection_z += (key == 'J') ? 0.01 : -0.01;
                 update();
                 flat_cloud.update();
+            }
+
+            if (action == meshview::input::Action::press) {
+                if (key == 'M') {
+                    dummy_mesh.enabled = !dummy_mesh.enabled;
+                    std::cout << dummy_mesh.enabled << "\n";
+                }
             }
         }
         return true;
