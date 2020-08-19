@@ -59,11 +59,11 @@ int main(int argc, char** argv) {
     }
 
     // Add planar cross section point cloud
-    auto& flat_cloud = viewer.add_point_cloud(_pts_flat, 0.0, 1.0, 0.0);
+    auto& flat_cloud = viewer.add_point_cloud(_pts_flat, 0.f, 1.f, 0.f);
 
     // Add mesh as point cloud
     auto& mesh_cloud =
-        viewer.add_point_cloud(dummy_mesh.verts_pos(), 1.0, 1.0, 1.0);
+        viewer.add_point_cloud(dummy_mesh.verts_pos(), 0.7f, 0.7f, 0.7f);
 
     // Make a backup of verts to allow transformations
     Points verts_initial = flat_cloud.verts_pos();
