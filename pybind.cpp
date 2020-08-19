@@ -41,7 +41,7 @@ PYBIND11_MODULE(sdf, m) {
         .def("__repr__", [](const SDF& sdf) {
             return "<sdf.SDF: " + std::to_string(sdf.verts().rows()) +
                    " verts, " + std::to_string(sdf.faces().rows()) + " faces" +
-                   (sdf.robust ? ", robust" : "") + " >";
+                   (sdf.robust ? ", robust" : "") + ">";
         });
     py::module m_util = m.def_submodule("util");
     m_util
