@@ -1,3 +1,7 @@
+// libsdf: Triangle mesh to signed-distance function (SDF)
+// (c) Alex Yu 2020
+// License: Apache 2.0
+
 #pragma once
 #ifndef SDF_SDF_F15B6437_01FD_4DBE_AB0D_BC1EE8ACC4C4
 #define SDF_SDF_F15B6437_01FD_4DBE_AB0D_BC1EE8ACC4C4

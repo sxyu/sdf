@@ -1,3 +1,4 @@
+// USAGE: ./sdf-demo BASIC_OBJ_FILE. Try the teapot.obj included in the project.
 #include <sdf/sdf.hpp>
 #include <meshview/meshview.hpp>
 #include <meshview/meshview_imgui.hpp>
@@ -35,7 +36,7 @@ int main(int argc, char** argv) {
     // Create meshview viewer
     meshview::Viewer viewer;
 
-    // Create SDF instance from loaded mesh
+    // Create SDF instance from loaded mesh (robust mode)
     sdf::SDF sdf(dummy_mesh.verts_pos(), dummy_mesh.faces);
 
     // Cross section visualization parameters
