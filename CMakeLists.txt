@@ -6,6 +6,9 @@ endif()
 if (POLICY CMP0048)
     cmake_policy(SET CMP0048 NEW)
 endif (POLICY CMP0048)
+if (POLICY CMP0069)
+    cmake_policy(SET CMP0069 NEW)
+endif (POLICY CMP0069)
 if (POLICY CMP0072)
     cmake_policy(SET CMP0072 NEW)
 endif (POLICY CMP0072)
@@ -22,6 +25,8 @@ set( SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src" )
 
 option( SDF_USE_SYSTEM_EIGEN
     "Use system Eigen. If false, please set EIGEN_INCLUDE_DIR manually" ON )
+option( SDF_BUILD_DEMO "Build the demo program, if meshview available" ON )
+option( SDF_BUILD_PYTHON "Build the python bindings, if pybind11 available" ON )
 option( SDF_BUILD_INSTALL "Build the install target" ON )
 
 if ( CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang") )
@@ -61,6 +66,12 @@ if (NOT meshview_FOUND)
     message( WARNING "meshview not found, demo is disabled. Please install from https://github.com/sxyu/meshview if you want to run the demo (totally optional)" )
 endif()
 
+# Optional pybind11
+find_package( pybind11 )
+if (NOT pybind11_FOUND)
+    message( WARNING "pybind11 not found, Python binding is disabled. Install from https://github.com/pybind/pybind11" )
+endif()
+
 add_library( sdf STATIC ${SDF_SOURCES} )
 
 target_include_directories(
@@ -75,10 +86,16 @@ target_link_libraries( sdf PUBLIC
     ${CMAKE_DL_LIBS}
 )
 
-if (meshview_FOUND)
+if (${meshview_FOUND} AND ${SDF_BUILD_DEMO})
     add_executable(sdf-demo demo.cpp)
     target_link_libraries( sdf-demo sdf meshview::meshview )
-endif (meshview_FOUND)
+endif ()
+
+if (${pybind11_FOUND} AND ${SDF_BUILD_PYTHON})
+    pybind11_add_module(pysdf SHARED ${SDF_SOURCES} pybind.cpp)
+    set_target_properties(pysdf PROPERTIES OUTPUT_NAME sdf)
+    target_link_libraries(pysdf PRIVATE ${DEPENDENCIES})
+endif ()
 
 if (SDF_BUILD_INSTALL)
     set_target_properties( sdf PROPERTIES

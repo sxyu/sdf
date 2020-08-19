@@ -210,7 +210,7 @@ struct SDF::Impl {
     }
 
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
-        Eigen::Ref<const Points> points, bool trunc_aabb = false) {
+        Eigen::Ref<const Points> points) {
         if (robust) {
             Eigen::Matrix<bool, Eigen::Dynamic, 1> result(points.rows());
             maybe_parallel_for(
