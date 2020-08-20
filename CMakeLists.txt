@@ -40,7 +40,7 @@ elseif( MSVC )
 endif ( )
 
 file(GLOB SDF_SOURCES ${SRC_DIR}/*.cpp)
-file(GLOB SDF_PUBLIC_HEADERS ${INCLUDE_DIR}/sdf/*.hpp ${INCLUDE_DIR}/sdf/*.h)
+set(SDF_PUBLIC_HEADERS ${INCLUDE_DIR}/sdf/sdf.hpp)
 
 set( DEPENDENCIES )
 
