@@ -35,14 +35,17 @@ PYBIND11_MODULE(sdf, m) {
              py::arg("num_points"))
         .def_property_readonly("surface_area", &SDF::surface_area,
                                "Get surface area of mesh")
-        .def("face_areas", &SDF::face_areas,
-             "ADVANCED: Get vector of face areas (n_faces)")
-        .def("face_normals", &SDF::face_normals,
-             "ADVANCED: Get matrix of face normals (n_faces, 3)")
-        .def("face_normals", &SDF::face_points,
-             "ADVANCED: Get matrix points for a face (3,3). Each row is a "
-             "point.")
-        .def("aabb", &SDF::aabb, "ADVANCED: Get AABB of entire mesh.")
+        .def_property_readonly("face_areas", &SDF::face_areas,
+                               "ADVANCED: Get vector of face areas (n_faces)")
+        .def_property_readonly(
+            "face_normals", &SDF::face_normals,
+            "ADVANCED: Get matrix of face normals (n_faces, 3)")
+        .def_property_readonly(
+            "face_normals", &SDF::face_points,
+            "ADVANCED: Get matrix points for a face (3,3). Each row is a "
+            "point.")
+        .def_property_readonly("aabb", &SDF::aabb,
+                               "ADVANCED: Get AABB of entire mesh.")
         .def_property_readonly("faces", &SDF::faces,
                                "Mesh faces passed to SDF constructor")
         .def_property_readonly("verts", &SDF::verts,
