@@ -33,7 +33,8 @@ PYBIND11_MODULE(sdf, m) {
              "it's much more efficent to do one large sample_surface call than "
              "many small ones.",
              py::arg("num_points"))
-        .def("surface_area", &SDF::surface_area, "Get surface area of mesh")
+        .def_property_readonly("surface_area", &SDF::surface_area,
+                               "Get surface area of mesh")
         .def("face_areas", &SDF::face_areas,
              "ADVANCED: Get vector of face areas (n_faces)")
         .def("face_normals", &SDF::face_normals,
