@@ -61,11 +61,9 @@ PYBIND11_MODULE(sdf, m) {
         .def_property_readonly("vertices", &SDF::verts,
                                "Mesh vertices passed to SDF constructor (alias "
                                "for verts for trimesh compatibility)")
-        .def_property_readonly(
-            "robust", [](const SDF& sdf) { return sdf.robust; },
-            "Whether SDF is in robust mode")
-        .def_property_readonly(
-            "own_data", [](const SDF& sdf) { return sdf.own_data; },
+        .def_readonly("robust", &SDF::robust, "Whether SDF is in robust mode")
+        .def_readonly(
+            "own_data", &SDF::own_data,
             "Whether SDF owns verts/faces data (constructed with copy=True), "
             "so you can change them with verts_mutable/faces_mutable")
         .def_property_readonly_static(
