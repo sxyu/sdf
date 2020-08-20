@@ -5,6 +5,9 @@
 #include <limits>
 #include <atomic>
 #include <thread>
+#include <random>
+#include <algorithm>
+#include <chrono>
 #include "sdf/nanoflann.hpp"
 #include "sdf/RTree.h"
 
@@ -250,6 +253,66 @@ struct SDF::Impl {
             face_area[i] = face_normal.row(i).norm();
             face_normal.row(i) /= face_area[i];
         }
+        total_area = face_area.sum();
+    }
+
+    Points sample_surface(int num_points) const {
+        // Safer seeding with time (random_device can be not availble)
+        thread_local std::mt19937 rg{
+            std::random_device{}() ^
+            static_cast<uint64_t>(std::chrono::high_resolution_clock::now()
+                                      .time_since_epoch()
+                                      .count())};
+        std::uniform_real_distribution<float> uniform(
+            0.0f, 1.0f - std::numeric_limits<float>::epsilon());
+        float running = 0.f;
+
+        Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> result(
+            num_points, 3);
+
+        // Inverse distribution sampling:
+        // pick each face with prob proportional to  area
+        Eigen::VectorXf rand_area(num_points);
+        for (size_t i = 0; i < num_points; ++i) {
+            rand_area[i] = uniform(rg) * total_area;
+        }
+        std::sort(rand_area.data(), rand_area.data() + num_points);
+
+        float cum_area = 0.f;
+        int j = 0, j_last = -1;
+        Eigen::Matrix<float, 1, 3, Eigen::RowMajor> ab, ac, bc, perp;
+        bool a_dir_of_bc;
+        for (int i = 0; i < face_area.rows() && j < num_points; ++i) {
+            // Triangle i
+            cum_area += face_area[i];
+            const auto a = face_points.row(3 * i),
+                       b = face_points.row(3 * i + 1),
+                       c = face_points.row(3 * i + 2);
+            while (j < num_points && rand_area[j] < cum_area) {
+                // Point j <-- u.a.r. in triangle i
+                if (j_last != j) {
+                    ab = b - a;
+                    ac = c - a;
+                    bc = c - b;
+                    perp = bc.cross(face_normal.row(i)).normalized();
+                    a_dir_of_bc = ab.dot(perp) < 0.0;
+                    j_last = j;
+                }
+
+                // Random in quadrilateral
+                result.row(j).noalias() =
+                    a + uniform(rg) * ab + uniform(rg) * ac;
+
+                // Reflect over bc, if we're over it
+                const float bp_dot_perp = (result.row(j) - b).dot(perp);
+                const bool p_dir_of_bc = bp_dot_perp >= 0.0;
+                if (p_dir_of_bc != a_dir_of_bc) {
+                    result.row(j).noalias() -= bp_dot_perp * perp * 2.f;
+                }
+                ++j;
+            }
+        }
+        return result;
     }
 
     // Input vertices
@@ -265,6 +328,8 @@ struct SDF::Impl {
     Points face_normal;
     // Stores face areas [n_face]
     Vector face_area;
+    // Total surface area
+    float total_area;
     // Stores adjacent faces to a point [n_points, <n_adj_faces>]
     std::vector<std::vector<int>> adj_faces;
 
@@ -349,6 +414,8 @@ const std::vector<int>& SDF::adj_faces(int pointid) const {
     return p_impl->adj_faces[pointid];
 }
 
+const float SDF::surface_area() const { return p_impl->total_area; }
+
 const Vector& SDF::face_areas() const { return p_impl->face_area; }
 
 const Points& SDF::face_normals() const { return p_impl->face_normal; }
@@ -394,4 +461,8 @@ Eigen::Matrix<bool, Eigen::Dynamic, 1> SDF::contains(
 }
 
 void SDF::update() { p_impl->update(); }
+
+Points SDF::sample_surface(int num_points) const {
+    return p_impl->sample_surface(num_points);
+}
 }  // namespace sdf

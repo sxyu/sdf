@@ -1,4 +1,5 @@
-// USAGE: ./sdf-demo BASIC_OBJ_FILE. Try the teapot.obj included in the project.
+// USAGE: ./sdf-demo BASIC_OBJ_FILE (with only triangular faces supported)
+// Try the OBJ files in sample-obj included in the project.
 #include <sdf/sdf.hpp>
 #include <meshview/meshview.hpp>
 #include <meshview/meshview_imgui.hpp>
@@ -23,7 +24,7 @@ using namespace sdf;
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Expect 1 argument: path to ./teapot.obj (or other "
+        std::cerr << "Expect 1 argument: path to sample-obj/x.obj (or other "
                      "simple OBJ file)\n";
         return 0;
     }

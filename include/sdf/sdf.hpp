@@ -16,13 +16,12 @@
 
 namespace sdf {
 
-using Scalar = float;
 using Index = uint32_t;
-using Points = Eigen::Matrix<Scalar, Eigen::Dynamic, 3, Eigen::RowMajor>;
+using Points = Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>;
 using Triangles = Eigen::Matrix<Index, Eigen::Dynamic, 3, Eigen::RowMajor>;
 using Matrix =
-    Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-using Vector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+using Vector = Eigen::Matrix<float, Eigen::Dynamic, 1>;
 
 namespace util {
 
@@ -175,9 +174,18 @@ struct SDF {
     // and update face normals+areas
     void update();
 
+    /*** MISC UTILITIES ***/
+    // Sample 'num_points' points uniformly on surface, output (num_points, 3).
+    // Note: this takes O(num_points * log(num_points) + num_faces) time.
+    // It's better to batch many points together, so num_points >> num_faces.
+    Points sample_surface(int num_points) const;
+
     /*** DATA ACCESSORS ***/
     // Get adjacent faces of point at verts[pointid]
     const std::vector<int>& adj_faces(int pointid) const;
+
+    // Get total surface area of mesh
+    const float surface_area() const;
 
     // Get vector of face areas, shape (num_faces)
     const Vector& face_areas() const;
