@@ -9,7 +9,8 @@ All operations are CPU-only and parallelized.
 ## Quickstart
 
 **Install python binding**: `pip install pysdf`
-Usage example:
+
+### Usage example:
 ```python
 from pysdf import SDF
 
@@ -37,8 +38,9 @@ the_surface_area = f.surface_area
 ```
 To modify the vertices/faces, you can change
 `f.vertices_mutable` and `f.faces_mutable`, then call `f.update()` to 
-update internals. You can also use 
-`f.vertices` and `f.faces` to access these (non-writable).
+update the internal data structures.
+You can also use 
+`f.vertices` and `f.faces` to access vertices and faces (non-writable).
 
 ## Screenshots
 
