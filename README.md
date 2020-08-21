@@ -37,6 +37,12 @@ Eigen::Matrix<bool, -1, 1> contains_points = sdf.contains(points);
 
 // Miscellaneous: nearest neighbor. points (k, 3) float; return (k) int
 Eigen::VectorXi nn_verts_idxs = sdf.nn(points);
+
+// Miscellaneous: uniformly random points on surface (generates 10000 in this case)
+Eigen::Matrix<float, -1, 3> random_surface_points = sdf.sample_surface(10000);
+
+// Surface area
+float surface_area = sdf.surface_area
 ```
 Note SDF is > 0 inside and < 0 outside mesh.
 
@@ -63,7 +69,9 @@ f = SDF(o.vertices, o.faces);
 origin_sdf = f([0, 0, 0])
 origin_contained = f.contains([0, 0, 0])
 origin_nn = f.nn([0, 0, 0])
-other_sdf = f([[0, 0, 0],[1,1,1],[0.1,0.2,0.2]])
+sdf_multi_point = f([[0, 0, 0],[1,1,1],[0.1,0.2,0.2]])
+random_surface_points = f.sample_surface(10000)
+the_surface_area = f.surface_area
 ```
 To modify the vertices/faces, you can use
 `f.vertices_mutable` and `f.faces_mutable`.

@@ -101,7 +101,7 @@ PYBIND11_MODULE(sdf, m) {
         .def("normal", &util::normal<float>,
              "Triangle normal (each row is a point)")
         .def("dist_point2line", &util::dist_point2line<float>,
-             "Compute 3d point-line squard distance")
+             "Compute 3d point-line squared distance")
         .def("dist_point2lineseg", &util::dist_point2lineseg<float>,
              "Compute 3d point-line segment squared distance")
         .def(
