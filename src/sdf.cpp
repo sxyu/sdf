@@ -38,6 +38,17 @@ void maybe_parallel_for(std::function<void(int&)> loop_content,
         worker();
     }
 }
+
+// Get a seeded mersenne twister 19937
+std::mt19937& get_rng() {
+    // Safer seeding with time (random_device can be not availble)
+    thread_local std::mt19937 rg{
+        std::random_device{}() ^
+        static_cast<uint64_t>(std::chrono::high_resolution_clock::now()
+                                  .time_since_epoch()
+                                  .count())};
+    return rg;
+}
 }  // namespace
 
 namespace nanoflann {
@@ -126,7 +137,6 @@ struct SDF::Impl {
     Impl(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
          bool robust)
         : verts(verts), faces(faces), robust(robust), kd_tree(verts) {
-        face_points.resize(faces.rows() * 3, face_points.ColsAtCompileTime);
         face_normal.resize(faces.rows(), face_normal.ColsAtCompileTime);
         face_area.resize(faces.rows());
         adj_faces.resize(verts.rows());
@@ -134,7 +144,51 @@ struct SDF::Impl {
             for (int j = 0; j < faces.ColsAtCompileTime; ++j)
                 adj_faces[faces(i, j)].push_back(i);
         }
+
         update(false);
+    }
+
+    void update(bool need_rebuild_kd_tree = true) {
+        if (need_rebuild_kd_tree) kd_tree.rebuild();
+        if (robust) {
+            rtree.RemoveAll();
+        }
+        aabb.head<3>() = verts.colwise().minCoeff();
+        aabb.tail<3>() = verts.colwise().maxCoeff();
+
+        if (robust) {
+            // Generate a random rotation matrix using a unit quaternion
+            // to use as raycast frame, ref
+            // https://en.wikipedia.org/wiki/Rotation_matrix#Uniform_random_rotation_matrices
+            auto& rg = get_rng();
+            std::normal_distribution<float> gaussian(0.0f, 1.0f);
+            Eigen::Quaternionf rand_rot(gaussian(rg), gaussian(rg),
+                                        gaussian(rg), gaussian(rg));
+            rand_rot.normalize();
+            raycast_axes.noalias() = rand_rot.toRotationMatrix();
+        }
+        for (int i = 0; i < faces.rows(); ++i) {
+            const auto va = verts.row(faces(i, 0)), vb = verts.row(faces(i, 1)),
+                       vc = verts.row(faces(i, 2));
+            if (robust) {
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> face_aabb_min =
+                                                                va *
+                                                                raycast_axes,
+                                                            face_aabb_max =
+                                                                va *
+                                                                raycast_axes;
+                face_aabb_min = face_aabb_min.cwiseMin(vb * raycast_axes);
+                face_aabb_min = face_aabb_min.cwiseMin(vc * raycast_axes);
+                face_aabb_max = face_aabb_max.cwiseMax(vb * raycast_axes);
+                face_aabb_max = face_aabb_max.cwiseMax(vc * raycast_axes);
+                rtree.Insert(face_aabb_min.data(), face_aabb_max.data(), i);
+            }
+
+            face_normal.row(i).noalias() = util::normal<float>(va, vb, vc);
+            face_area[i] = face_normal.row(i).norm();
+            face_normal.row(i) /= face_area[i];
+        }
+        total_area = face_area.sum();
     }
 
     Eigen::VectorXi nn(Eigen::Ref<const Points> points) {
@@ -163,7 +217,7 @@ struct SDF::Impl {
             [&](int i) {
                 size_t neighb_index;
                 float _dist;
-                nanoflann::KNNResultSet<float> resultSet(1);
+                nanoflann::KNNResultSet<float> result_set(1);
 
                 auto point = points.row(i);
 
@@ -183,17 +237,20 @@ struct SDF::Impl {
                     }
                 }
 
-                resultSet.init(&neighb_index, &_dist);
-                kd_tree.index->findNeighbors(resultSet, point.data(),
+                result_set.init(&neighb_index, &_dist);
+                kd_tree.index->findNeighbors(result_set, point.data(),
                                              nanoflann::SearchParams(10));
 
                 Eigen::Matrix<float, 1, 3, Eigen::RowMajor> avg_normal;
                 if (!robust) avg_normal.setZero();
+                Eigen::Matrix<float, 3, 3, Eigen::RowMajor> face_tri;
                 for (int faceid : adj_faces[neighb_index]) {
-                    auto face_tri = face_points.block<3, 3>(faceid * 3, 0);
+                    const auto face = faces.row(faceid);
+
                     const auto normal = face_normal.row(faceid);
                     const float tridist = util::dist_point2tri<float>(
-                        point, face_tri, normal, face_area[faceid]);
+                        point, verts.row(face(0)), verts.row(face(1)),
+                        verts.row(face(2)), normal, face_area[faceid]);
                     if (tridist < min_dist - DIST_EPS) {
                         min_dist = tridist;
                         if (!robust) avg_normal.noalias() = normal;
@@ -228,41 +285,8 @@ struct SDF::Impl {
         }
     }
 
-    void update(bool need_rebuild_kd_tree = true) {
-        if (need_rebuild_kd_tree) kd_tree.rebuild();
-        Eigen::Matrix<float, 1, 3, Eigen::RowMajor> aabb_min, aabb_max;
-        if (robust) {
-            rtree.RemoveAll();
-        }
-        aabb.head<3>() = verts.colwise().minCoeff();
-        aabb.tail<3>() = verts.colwise().maxCoeff();
-        for (int i = 0; i < faces.rows(); ++i) {
-            const int a = faces(i, 0), b = faces(i, 1), c = faces(i, 2);
-            const auto va = verts.row(a), vb = verts.row(b), vc = verts.row(c);
-            auto face_tri = face_points.block<3, 3>(i * 3, 0);
-            face_tri.row(0).noalias() = va;
-            face_tri.row(1).noalias() = vb;
-            face_tri.row(2).noalias() = vc;
-            if (robust) {
-                aabb_min = face_tri.colwise().minCoeff();
-                aabb_max = face_tri.colwise().maxCoeff();
-                rtree.Insert(aabb_min.data(), aabb_max.data(), i);
-            }
-
-            face_normal.row(i).noalias() = util::normal<float>(face_tri);
-            face_area[i] = face_normal.row(i).norm();
-            face_normal.row(i) /= face_area[i];
-        }
-        total_area = face_area.sum();
-    }
-
     Points sample_surface(int num_points) const {
-        // Safer seeding with time (random_device can be not availble)
-        thread_local std::mt19937 rg{
-            std::random_device{}() ^
-            static_cast<uint64_t>(std::chrono::high_resolution_clock::now()
-                                      .time_since_epoch()
-                                      .count())};
+        auto& rg = get_rng();
         std::uniform_real_distribution<float> uniform(
             0.0f, 1.0f - std::numeric_limits<float>::epsilon());
         float running = 0.f;
@@ -285,9 +309,9 @@ struct SDF::Impl {
         for (int i = 0; i < face_area.rows() && j < num_points; ++i) {
             // Triangle i
             cum_area += face_area[i];
-            const auto a = face_points.row(3 * i),
-                       b = face_points.row(3 * i + 1),
-                       c = face_points.row(3 * i + 2);
+            const auto face = faces.row(i);
+            const auto a = verts.row(face[0]), b = verts.row(face[1]),
+                       c = verts.row(face[2]);
             while (j < num_points && rand_area[j] < cum_area) {
                 // Point j <-- u.a.r. in triangle i
                 if (j_last != j) {
@@ -322,8 +346,6 @@ struct SDF::Impl {
     // Whether to use 'robust' sign computation
     const bool robust;
 
-    // Stores face points [3xn_face, 3] (3x3 matrix per face, row per point)
-    Points face_points;
     // Stores face normals [n_face, 3]
     Points face_normal;
     // Stores face areas [n_face]
@@ -346,53 +368,68 @@ struct SDF::Impl {
     // Face R-Tree (aka AABB Tree)
     RTree<int, float, 3> rtree;
 
+    // Random rotation matrix which transforms points from
+    // global space to space used for raycasting.
+    // This allows us to use the RTree to do raycasting in an arbitrary
+    // direction. Only to be used in robust mode
+    Eigen::Matrix<float, 3, 3, Eigen::RowMajor> raycast_axes;
+
+    // Raycast to check if point is in or on surface of mesh.
+    // Returns 1 if in, -1 else.
     // Only to be used in robust mode
-    float _raycast(
-        Eigen::Ref<const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>> point) {
-        auto raycast = [&](int ax_idx, int ax_dir) -> float {
+    float _raycast(Eigen::Ref<const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>>
+                       point_orig) {
+        for (int t = 0; t < 3; ++t) {
+            if (point_orig[t] < aabb[t] || point_orig[t] > aabb[t + 3]) {
+                // Out of mesh's bounding box
+                return -1;
+            }
+        }
+        Eigen::Matrix<float, 1, 3, Eigen::RowMajor> point =
+            point_orig * raycast_axes;
+
+        // ax_idx: axis index, either 0(x) or 2(z).
+        //         note: y not supported by current code for efficiency
+        // ax_inv: if true, raycasts in negative direction along axis, else
+        //         positive direction
+        // return: 1 if inside, 0 else
+        auto raycast = [&](int ax_idx, bool ax_inv) -> int {
             Eigen::Matrix<float, 1, 3, Eigen::RowMajor> aabb_min, aabb_max;
-            // int idx_1 = (ax_idx == 0) ? 1 : 0;
-            // int idx_2 = (ax_idx == 2) ? 1 : 2;
-            int hits = 0;
+            int contained = 0;
             int ax_offs = ax_idx == 0 ? 1 : 0;
 
             auto check_face = [&](int faceid) -> bool {
-                auto normal = face_normal.row(faceid);
-                if (normal.dot(point - face_points.row(faceid * 3)) *
-                        normal[ax_idx] * ax_dir <=
-                    0.f) {
-                    // Eigen::Matrix<float, 1, 2, Eigen::RowMajor>
-                    //     point2d_tmp;
-                    // point2d_tmp[0] = point[idx_1];
-                    // point2d_tmp[1] = point[idx_2];
-
-                    Eigen::Ref<Eigen::Matrix<float, 3, 2, Eigen::RowMajor>>
-                        face2d_tmp =
-                            face_points.block<3, 2>(faceid * 3, ax_offs);
-                    // face2d_tmp.leftCols<1>().noalias() =
-                    //     face_points.block<3, 1>(faceid * 3, idx_1);
-                    // face2d_tmp.rightCols<1>().noalias() =
-                    //     face_points.block<3, 1>(faceid * 3, idx_2);
-
-                    if (util::point_in_tri_2d<float>(point.segment<2>(ax_offs),
-                                                     face2d_tmp)) {
-                        hits ^= 1;
+                const auto face = faces.row(faceid);
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> normal =
+                    face_normal.row(faceid) * raycast_axes;
+                if ((normal.dot(point - verts.row(face[0]) * raycast_axes) *
+                         normal[ax_idx] >
+                     0.f) == ax_inv) {
+                    if (util::point_in_tri_2d<float>(
+                            point.segment<2>(ax_offs),
+                            (verts.row(face[0]) * raycast_axes)
+                                .segment<2>(ax_offs),
+                            (verts.row(face[1]) * raycast_axes)
+                                .segment<2>(ax_offs),
+                            (verts.row(face[2]) * raycast_axes)
+                                .segment<2>(ax_offs))) {
+                        contained ^= 1;
                     }
                 }
                 return true;
             };
             aabb_min.noalias() = point;
             aabb_max.noalias() = point;
-            if (ax_dir > 0)
-                aabb_max[ax_idx] = aabb[ax_idx + 3];
+            if (ax_inv)
+                aabb_min[ax_idx] = -std::numeric_limits<float>::max();
             else
-                aabb_min[ax_idx] = aabb[ax_idx];
+                aabb_max[ax_idx] = std::numeric_limits<float>::max();
             rtree.Search(aabb_min.data(), aabb_max.data(), check_face);
-            return hits ? 1.f : -1.f;
+            return contained;
         };
-        Eigen::Matrix<float, 3, 1> ans;
-        ans << raycast(0, 1), raycast(2, 1), raycast(2, -1);
-        return ans.sum() > 0.f ? 1.0f : -1.0f;
+        int result = raycast(2, false) + raycast(2, true);
+        if (result == 1) result += raycast(0, false);  // Tiebreaker
+        return result > 1 ? 1.0f : -1.0f;
     }
 };
 
@@ -419,11 +456,6 @@ const float SDF::surface_area() const { return p_impl->total_area; }
 const Vector& SDF::face_areas() const { return p_impl->face_area; }
 
 const Points& SDF::face_normals() const { return p_impl->face_normal; }
-
-Eigen::Ref<const Eigen::Matrix<float, 3, 3, Eigen::RowMajor>> SDF::face_points(
-    int faceid) const {
-    return p_impl->face_points.block<3, 3>(3 * faceid, 0);
-}
 
 Eigen::Ref<const Eigen::Matrix<float, 6, 1>> SDF::aabb() const {
     return p_impl->aabb.transpose();

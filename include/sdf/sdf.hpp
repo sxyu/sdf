@@ -49,8 +49,10 @@ T dist_point2lineseg(
 
 template <class T>
 const Eigen::Matrix<T, 1, 3> normal(
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 3, Eigen::RowMajor>>& tri) {
-    return (tri.row(1) - tri.row(0)).cross(tri.row(2) - tri.row(0));
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c) {
+    return (b - a).cross(c - a);
 }
 
 template <class T>
@@ -60,11 +62,13 @@ template <class T>
 // where normal is normalized vector, area is magnitude
 Eigen::Matrix<T, 1, 3> bary(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 3, Eigen::RowMajor>>& tri,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
     float area_abc) {
-    float area_pbc = normal.dot((tri.row(1) - p).cross(tri.row(2) - p));
-    float area_pca = normal.dot((tri.row(2) - p).cross(tri.row(0) - p));
+    float area_pbc = normal.dot((b - p).cross(c - p));
+    float area_pca = normal.dot((c - p).cross(a - p));
 
     Eigen::Matrix<T, 1, 3> uvw;
     uvw.x() = area_pbc / area_abc;
@@ -80,18 +84,20 @@ template <class T>
 // where normal is normalized vector, area is magnitude
 T dist_point2tri(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 3, Eigen::RowMajor>>& tri,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
     float area) {
-    const Eigen::Matrix<T, 1, 3> uvw = bary<T>(p, tri, normal, area);
+    const Eigen::Matrix<T, 1, 3> uvw = bary<T>(p, a, b, c, normal, area);
     if (uvw[0] < 0) {
-        return dist_point2lineseg<T>(p, tri.row(1), tri.row(2));
+        return dist_point2lineseg<T>(p, b, c);
     } else if (uvw[1] < 0) {
-        return dist_point2lineseg<T>(p, tri.row(0), tri.row(2));
+        return dist_point2lineseg<T>(p, a, c);
     } else if (uvw[2] < 0) {
-        return dist_point2lineseg<T>(p, tri.row(0), tri.row(1));
+        return dist_point2lineseg<T>(p, a, b);
     } else {
-        return (uvw * tri - p).squaredNorm();
+        return (uvw[0] * a + uvw[1] * b + uvw[2] * c - p).squaredNorm();
     }
 }
 
@@ -99,10 +105,10 @@ template <class T>
 // Returns true if 2D point is in 2D triangle.
 bool point_in_tri_2d(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& p,
-    const Eigen::Ref<const Eigen::Matrix<T, 3, 2, Eigen::RowMajor>>& tri) {
-    Eigen::Matrix<T, 1, 2, Eigen::RowMajor> v0 = tri.row(1) - tri.row(0),
-                                            v1 = tri.row(2) - tri.row(0),
-                                            v2 = p - tri.row(0);
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& b,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& c) {
+    Eigen::Matrix<T, 1, 2, Eigen::RowMajor> v0 = b - a, v1 = c - a, v2 = p - a;
     const float invden = 1.f / (v0.x() * v1.y() - v1.x() * v0.y());
     const float v = (v2.x() * v1.y() - v1.x() * v2.y()) * invden;
     const float w = (v0.x() * v2.y() - v2.x() * v0.y()) * invden;
@@ -193,11 +199,6 @@ struct SDF {
     // Get matrix of face normals, shape (num_faces, 3).
     // normal of face i (from faces passed to constructor) is in row i
     const Points& face_normals() const;
-
-    // Get matrix of points in triangular face faceid, shape (3, 3).
-    // Note: each row is a point.
-    Eigen::Ref<const Eigen::Matrix<float, 3, 3, Eigen::RowMajor>> face_points(
-        int faceid) const;
 
     // Get AABB of entire mesh, shape (6).
     // (minx, miny, minz, maxx, maxy, maxz)

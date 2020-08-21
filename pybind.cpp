@@ -40,10 +40,6 @@ PYBIND11_MODULE(sdf, m) {
         .def_property_readonly(
             "face_normals", &SDF::face_normals,
             "ADVANCED: Get matrix of face normals (n_faces, 3)")
-        .def_property_readonly(
-            "face_normals", &SDF::face_points,
-            "ADVANCED: Get matrix points for a face (3,3). Each row is a "
-            "point.")
         .def_property_readonly("aabb", &SDF::aabb,
                                "ADVANCED: Get AABB of entire mesh.")
         .def_property_readonly("faces", &SDF::faces,
@@ -89,17 +85,17 @@ PYBIND11_MODULE(sdf, m) {
                    ", 3), robust=" + (sdf.robust ? "True" : "False") + ")>";
         });
     py::module m_util = m.def_submodule("util");
+    using RefConstRowVec3f =
+        const Eigen::Ref<const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>>;
     m_util
         .def(
             "bary",
-            [](const Eigen::Ref<
-                   const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>>& p,
-               const Eigen::Ref<
-                   const Eigen::Matrix<float, 3, 3, Eigen::RowMajor>>& tri) {
-                auto normal = util::normal<float>(tri);
+            [](RefConstRowVec3f& p, RefConstRowVec3f& a, RefConstRowVec3f& b,
+               RefConstRowVec3f& c) {
+                auto normal = util::normal<float>(a, b, c);
                 float area = normal.norm();
                 normal /= area;
-                return util::bary<float>(p, tri, normal, area);
+                return util::bary<float>(p, a, b, c, normal, area);
             },
             "3D point to barycentric")
         .def("normal", &util::normal<float>,
@@ -110,14 +106,12 @@ PYBIND11_MODULE(sdf, m) {
              "Compute 3d point-line segment squared distance")
         .def(
             "dist_point2tri",
-            [](const Eigen::Ref<
-                   const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>>& p,
-               const Eigen::Ref<
-                   const Eigen::Matrix<float, 3, 3, Eigen::RowMajor>>& tri) {
-                auto normal = util::normal<float>(tri);
+            [](RefConstRowVec3f& p, RefConstRowVec3f& a, RefConstRowVec3f& b,
+               RefConstRowVec3f& c) {
+                auto normal = util::normal<float>(a, b, c);
                 float area = normal.norm();
                 normal /= area;
-                return util::dist_point2tri<float>(p, tri, normal, area);
+                return util::dist_point2tri<float>(p, a, b, c, normal, area);
             },
             "Compute 3d point-triangle squared distance")
         .def("point_in_tri_2d", &util::point_in_tri_2d<float>,

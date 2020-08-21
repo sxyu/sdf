@@ -49,7 +49,7 @@ Robust mode uses raytracing. Currently the ray tracing has the same limitation a
 that is when ray exactly hits an edge the intersection gets double counted, inverting the sign
 of the distance function. 
 This is unlikely for random points but can frequently occur especially if points and mesh vertices are both taken from a grid.
-In practice, we trace 3 rays and take the majority sign to decrease the likelihood of this occurring.
+In practice, we trace 3 rays along different axes and take the majority sign to decrease the likelihood of this occurring.
 
 ### Python
 To install Python binding, use `pip install .`
