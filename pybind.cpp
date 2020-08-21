@@ -9,7 +9,7 @@
 namespace py = pybind11;
 using namespace sdf;
 
-PYBIND11_MODULE(sdf, m) {
+PYBIND11_MODULE(pysdf, m) {
     m.doc() =
         R"pbdoc(SDF: Convert triangle mesh to continuous signed distance function)pbdoc";
     py::class_<SDF>(m, "SDF")

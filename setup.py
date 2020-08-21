@@ -3,7 +3,7 @@ from setuptools.command.build_ext import build_ext
 import sys
 import setuptools
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 
 class get_pybind_include(object):
@@ -95,7 +95,7 @@ def find_eigen(min_ver=(3, 2, 0)):
 
 ext_modules = [
     Extension(
-        'sdf',
+        'pysdf',
         # Sort input source files to ensure bit-for-bit reproducible builds
         # (https://github.com/pybind/python_example/pull/53)
         sorted(['src/sdf.cpp', 'pybind.cpp']),
@@ -183,7 +183,7 @@ class BuildExt(build_ext):
 
 
 setup(
-    name='sdf',
+    name='pysdf',
     version=__version__,
     author='Alex Yu',
     author_email='alexyu99126@gmail.com',

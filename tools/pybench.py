@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 import trimesh
-from sdf import SDF
+from pysdf import SDF
 
 teapot = trimesh.load(sys.argv[1], use_embree=(sys.argv[2] == 'True'))
 teapot_sdf = SDF(np.array(teapot.vertices), np.array(teapot.faces))

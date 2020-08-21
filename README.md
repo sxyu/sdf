@@ -58,11 +58,11 @@ This is unlikely for random points but can frequently occur especially if points
 In practice, we trace 3 rays along different axes and take the majority sign to decrease the likelihood of this occurring.
 
 ### Python
-To install Python binding, use `pip install .`
-You may need to first install pybind11 from https://github.com/pybind/pybind11.
+To install Python binding, use `pip install .` 
+Note the Python package name is `pysdf`.
 Usage example:
 ```python
-from sdf import SDF
+from pysdf import SDF
 import trimesh
 o = trimesh.load('some.obj')
 f = SDF(o.vertices, o.faces);

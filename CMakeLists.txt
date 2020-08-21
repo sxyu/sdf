@@ -88,7 +88,7 @@ endif ()
 
 if (${pybind11_FOUND} AND ${SDF_BUILD_PYTHON})
     pybind11_add_module(pysdf SHARED ${SDF_SOURCES} pybind.cpp)
-    set_target_properties(pysdf PROPERTIES OUTPUT_NAME sdf)
+    set_target_properties(pysdf PROPERTIES OUTPUT_NAME pysdf)
     target_include_directories(
         pysdf PUBLIC
         $<BUILD_INTERFACE:${INCLUDE_DIR}>
