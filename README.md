@@ -6,6 +6,8 @@ Given a triangle mesh and a set of points, this library supports:
 3. Computing nearest neighbor vertex index for each point: `sdf.nn(points)`
 All operations are CPU-only and parallelized.
 
+**Install python binding**: `pip install pysdf`
+
 <img src="https://github.com/sxyu/sdf/blob/master/readme-img/human.gif"
     width="400">
 
@@ -58,7 +60,7 @@ This is unlikely for random points but can frequently occur especially if points
 In practice, we trace 3 rays along different axes and take the majority sign to decrease the likelihood of this occurring.
 
 ### Python
-To install Python binding, use `pip install .` 
+To install Python binding, use `pip install pysdf`, or `pip install .` after cloning the repo. 
 Note the Python package name is `pysdf`.
 Usage example:
 ```python
