@@ -113,6 +113,6 @@ All benchmarks are ran on a 6-core CPU (Intel i7 8th generation, high-performanc
 | 179282          | 1,301 | 20,157  | 1,672,859   | 1,987,869 |
 
 ## License
-Apache 2.0
+BSD 2-clause
 
 This library relies on the nanoflann (BSD) and RTree (MIT) libraries.
