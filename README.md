@@ -35,8 +35,10 @@ random_surface_points = f.sample_surface(10000)
 # Misc: surface area
 the_surface_area = f.surface_area
 ```
-To modify the vertices/faces, you can use
-`f.vertices_mutable` and `f.faces_mutable`.
+To modify the vertices/faces, you can change
+`f.vertices_mutable` and `f.faces_mutable`, then call `f.update()` to 
+update internals. You can also use 
+`f.vertices` and `f.faces` to access these (non-writable).
 
 ## Screenshots
 
@@ -90,12 +92,14 @@ The SDF computation will be slightly faster but may be *incorrect* if the mesh h
 
 ## Python
 See the quickstart section for a usage example.
+`help(pysdf)` will show more unimportant miscellaneous functions you may want to use (surface normal, area, etc.).
 
 ### Copying
 By default, `SDF(verts, faces)` will copy the vertices/faces to ensure memory safety,
 especially since the arguments may be automatically converted.
 Use `SDF(verts, faces, copy=False)` to prevent this, if you are sure verts/faces are
 of types np.float32/np.uint32 respectively and will not be destroyed before the SDF instance.
+In this mode, `vertices_mutable`/`faces_mutable` are unavailable.
 
 ## Warning about reliability
 In robust mode (default) we use raytracing (parity count) to check containment.
