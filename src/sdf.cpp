@@ -44,7 +44,7 @@ std::mt19937& get_rng() {
     // Safer seeding with time (random_device can be not availble)
     thread_local std::mt19937 rg{
         std::random_device{}() ^
-        static_cast<uint64_t>(std::chrono::high_resolution_clock::now()
+        static_cast<unsigned int>(std::chrono::high_resolution_clock::now()
                                   .time_since_epoch()
                                   .count())};
     return rg;
@@ -203,7 +203,7 @@ struct SDF::Impl {
                                              nanoflann::SearchParams(10));
                 result[i] = static_cast<int>(index);
             },
-            points.rows());
+            (int) points.rows());
         return result;
     }
 
@@ -267,7 +267,7 @@ struct SDF::Impl {
                     min_dist = -min_dist;
                 }
             },
-            points.rows());
+            (int) points.rows());
         return result;
     }
 
@@ -277,7 +277,7 @@ struct SDF::Impl {
             Eigen::Matrix<bool, Eigen::Dynamic, 1> result(points.rows());
             maybe_parallel_for(
                 [&](int i) { result[i] = _raycast(points.row(i)) >= 0.0f; },
-                points.rows());
+                (int) points.rows());
             return result;
         } else {
             Vector vals = calc(points, true);

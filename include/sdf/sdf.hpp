@@ -32,7 +32,9 @@
 
 #include <memory>
 #include <vector>
+#ifdef __GNUC__
 #include <experimental/propagate_const>
+#endif
 #include <Eigen/Geometry>
 
 namespace sdf {
@@ -245,7 +247,11 @@ struct SDF {
     Triangles owned_faces;
 
     struct Impl;
+#ifdef __GNUC__
     std::experimental::propagate_const<std::unique_ptr<Impl>> p_impl;
+#else
+    std::unique_ptr<Impl> p_impl;
+#endif
 };
 
 }  // namespace sdf
