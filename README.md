@@ -6,6 +6,44 @@ Given a triangle mesh and a set of points, this library supports:
 3. Computing nearest neighbor vertex index for each point: `sdf.nn(points)`
 All operations are CPU-only and parallelized.
 
+## Quickstart
+
+**Install python binding**: `pip install pysdf`
+
+### Usage example:
+```python
+from pysdf import SDF
+
+# Load some mesh (don't necessarily need trimesh)
+import trimesh
+o = trimesh.load('some.obj')
+f = SDF(o.vertices, o.faces); # (num_vertices, 3) and (num_faces, 3)
+
+# Compute some SDF values (negative outside);
+# takes a (num_points, 3) array, converts automatically
+origin_sdf = f([0, 0, 0])
+sdf_multi_point = f([[0, 0, 0],[1,1,1],[0.1,0.2,0.2]])
+
+# Contains check
+origin_contained = f.contains([0, 0, 0])
+
+# Misc: nearest neighbor
+origin_nn = f.nn([0, 0, 0])
+
+# Misc: uniform surface point sampling
+random_surface_points = f.sample_surface(10000)
+
+# Misc: surface area
+the_surface_area = f.surface_area
+```
+To modify the vertices/faces, you can change
+`f.vertices_mutable` and `f.faces_mutable`, then call `f.update()` to 
+update the internal data structures.
+You can also use 
+`f.vertices` and `f.faces` to access vertices and faces (non-writable).
+
+## Screenshots
+
 <img src="https://github.com/sxyu/sdf/blob/master/readme-img/human.gif"
     width="400">
 
@@ -24,7 +62,7 @@ Reasonable result for voxel grid
 <img src="https://github.com/sxyu/sdf/blob/master/readme-img/voxel.png"
     width="400">
 
-## Usage
+## C++ Library Usage
 ```cpp
 sdf::SDF sdf(verts, faces); // verts (n, 3) float, faces (m, 3) float
 
@@ -46,44 +84,38 @@ float surface_area = sdf.surface_area
 ```
 Note SDF is > 0 inside and < 0 outside mesh.
 
+## Use in CMake project
+- `find_package(sdf)`
+- After defining a target: `target_link_libraries(your_target sdf::sdf)`
+
 ### Robust mode
 By default 'robust' mode is used. `sdf::SDF sdf(verts, faces, false)` to disable.
 The SDF computation will be slightly faster but may be *incorrect* if the mesh has self-intersections or incorrect winding (not CCW) on some faces.
 
-#### Warning
-Robust mode uses raytracing. Currently the ray tracing has the same limitation as embree,
-that is when ray exactly hits an edge the intersection gets double counted, inverting the sign
-of the distance function. 
-This is unlikely for random points but can frequently occur especially if points and mesh vertices are both taken from a grid.
-In practice, we trace 3 rays along different axes and take the majority sign to decrease the likelihood of this occurring.
+## Python
+See the quickstart section for a usage example.
+`help(pysdf)` will show more unimportant miscellaneous functions you may want to use (surface normal, area, etc.).
 
-### Python
-To install Python binding, use `pip install .` 
-Note the Python package name is `pysdf`.
-Usage example:
-```python
-from pysdf import SDF
-import trimesh
-o = trimesh.load('some.obj')
-f = SDF(o.vertices, o.faces);
-origin_sdf = f([0, 0, 0])
-origin_contained = f.contains([0, 0, 0])
-origin_nn = f.nn([0, 0, 0])
-sdf_multi_point = f([[0, 0, 0],[1,1,1],[0.1,0.2,0.2]])
-random_surface_points = f.sample_surface(10000)
-the_surface_area = f.surface_area
-```
-To modify the vertices/faces, you can use
-`f.vertices_mutable` and `f.faces_mutable`.
-
-#### Copying
+### Copying
 By default, `SDF(verts, faces)` will copy the vertices/faces to ensure memory safety,
 especially since the arguments may be automatically converted.
 Use `SDF(verts, faces, copy=False)` to prevent this, if you are sure verts/faces are
 of types np.float32/np.uint32 respectively and will not be destroyed before the SDF instance.
+In this mode, `vertices_mutable`/`faces_mutable` are unavailable.
+
+## Warning about reliability
+In robust mode (default) we use raytracing (parity count) to check containment.
+Currently the ray tracing has the same limitation as embree,
+that is when ray exactly hits an edge the intersection gets double counted, inverting the sign
+of the distance function. 
+This is theoretically unlikely for random points but can occur either due to floating point error or if points and mesh vertices are both taken from a grid.
+In practice, we (1) randomize the ray tracing direction and (2) trace 3 rays along different axes and take majority to decrease the likelihood of this occurring.
+
+In non-robust mode we use nearest surface normal to check containment.
+ The contains check (and SDF sign) will be wrong under self-intersection or if normals are incorrectly oriented.
 
 ## Dependencies
-- Eigen 3
+- Eigen 3 (Python: automatically downloaded if needed)
 - Vendored (no installation needed):
     - nanoflann
     - nushoin/RTree
@@ -94,13 +126,8 @@ of types np.float32/np.uint32 respectively and will not be destroyed before the 
 `mkdir build && cmake .. && make -j4 && sudo make install`
 
 ## Demo
-A demo program can optionally be build if meshview is installed.
-To use it, run `./sdf-demo BASIC_OBJ_FILE`. Try the teapot.obj included in the project.
-df::SDF sdf(verts, faces)
-
-## Use in CMake project
-- `find_package(sdf)`
-- After defining a target: `target_link_libraries(your_target sdf::sdf)`
+A demo program can optionally be built, if meshview is installed.
+To use it, run `./sdf-demo BASIC_OBJ_FILE`. Try the `sample-obj/*.obj` included in the project.
 
 ## Benchmark
 
@@ -144,4 +171,4 @@ Notes:
 ## License
 BSD 2-clause
 
-This library relies on the nanoflann (BSD) and RTree (MIT) libraries.
+This library relies on the Eigen (MPL2) nanoflann (BSD) and RTree (MIT) libraries.

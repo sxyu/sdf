@@ -32,7 +32,9 @@
 
 #include <memory>
 #include <vector>
+#ifdef __GNUC__
 #include <experimental/propagate_const>
+#endif
 #include <Eigen/Geometry>
 
 namespace sdf {
@@ -203,8 +205,7 @@ struct SDF {
 
     /*** MISC UTILITIES ***/
     // Sample 'num_points' points uniformly on surface, output (num_points, 3).
-    // Note: this takes O(num_points * log(num_points) + num_faces) time.
-    // It's better to batch many points together, so num_points >> num_faces.
+    // Note: this takes O(num_points * log(num_faces)) time.
     Points sample_surface(int num_points) const;
 
     /*** DATA ACCESSORS ***/
@@ -245,7 +246,11 @@ struct SDF {
     Triangles owned_faces;
 
     struct Impl;
+#ifdef __GNUC__
     std::experimental::propagate_const<std::unique_ptr<Impl>> p_impl;
+#else
+    std::unique_ptr<Impl> p_impl;
+#endif
 };
 
 }  // namespace sdf

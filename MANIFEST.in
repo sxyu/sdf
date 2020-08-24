@@ -1,0 +1,9 @@
+include README.md
+include LICENSE.txt
+include MANIFEST.in
+include setup.py
+include pybind.cpp
+include src/sdf.cpp
+include include/sdf/sdf.hpp
+include include/sdf/nanoflann.hpp
+include include/sdf/RTree.h
