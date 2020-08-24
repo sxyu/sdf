@@ -94,6 +94,17 @@ int main(int argc, char** argv) {
     // Color by containment only
     bool contains_only = false;
 
+    std::vector<meshview::Mesh*> spheres;
+    // This part visualizes the surface sampling
+    // sdf::Points rand_pts = sdf.sample_surface(50);
+    // for (int i = 0; i < rand_pts.rows(); ++i) {
+    //     spheres.push_back(&viewer
+    //                            .add_sphere(Eigen::Vector3f(0.f, 0.f, 0.f),
+    //                                        0.02f,
+    //                                        Eigen::Vector3f(1.f, 0.0f, 0.f))
+    //                            .set_translation(rand_pts.row(i).transpose()));
+    // }
+
     // Update the cross section point cloud
     auto update = [&](bool model_rot_updated = false) {
         const float norm = csection_axisangle.norm();
@@ -102,6 +113,12 @@ int main(int argc, char** argv) {
             obj_mesh.verts_pos().noalias() =
                 mesh_verts_initial * rodrigues(model_axisangle).transpose();
             sdf.update();
+
+            // This part updates the surface sampling
+            // rand_pts = sdf.sample_surface(spheres.size());
+            // for (int i = 0; i < rand_pts.rows(); ++i) {
+            //     spheres[i]->set_translation(rand_pts.row(i).transpose());
+            // }
         }
 
         csection_verts.noalias() = csection_verts_initial;

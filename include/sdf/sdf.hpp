@@ -205,8 +205,7 @@ struct SDF {
 
     /*** MISC UTILITIES ***/
     // Sample 'num_points' points uniformly on surface, output (num_points, 3).
-    // Note: this takes O(num_points * log(num_points) + num_faces) time.
-    // It's better to batch many points together, so num_points >> num_faces.
+    // Note: this takes O(num_points * log(num_faces)) time.
     Points sample_surface(int num_points) const;
 
     /*** DATA ACCESSORS ***/

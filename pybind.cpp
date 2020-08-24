@@ -29,9 +29,9 @@ PYBIND11_MODULE(pysdf, m) {
         .def("update", &SDF::update,
              "Update the SDF to reflect any changes in verts")
         .def("sample_surface", &SDF::sample_surface,
-             "Sample num_points random points on surface. TIP: "
-             "it's much more efficent to do one large sample_surface call than "
-             "many small ones.",
+             "Sample num_points uniformly random points on mesh surface. "
+             "Internally, picks each triangle wp prop to area and then random "
+             "point on triangle.",
              py::arg("num_points"))
         .def_property_readonly("surface_area", &SDF::surface_area,
                                "Get surface area of mesh")
