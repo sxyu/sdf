@@ -104,13 +104,42 @@ df::SDF sdf(verts, faces)
 
 ## Benchmark
 
-All benchmarks are ran on a 6-core CPU (Intel i7 8th generation, high-performance laptop)
+### vs. trimesh
+
+All benchmarks are ran on a 6-core CPU (Intel i7 8th generation, high-performance laptop).
+More is better.
 
 | Model vertices | trimesh contains eval/s (numpy) | trimesh contains eval/s (pyembree) | our SDF evals / s (robust) | our SDF evals / s (non-robust)  |
 | -------------   | ------------- | ------------- | ------------- | ------------- |
 | 3241            | 29,555| 237,855 | 5,077,725   | 8,187,117 |
 | 49246           | 6,835 | 62,058  | 2,971,137   | 4,407,045 |
 | 179282          | 1,301 | 20,157  | 1,672,859   | 1,987,869 |
+
+### vs. JianWenPL/multiperson (CUDA)
+
+Here we compare to https://github.com/JiangWenPL/multiperson/tree/master/sdf.
+The GPU code is ran on a single GTX 1080 Ti, and CPU is a 6-core i7 5820K. I evaluate the SDF on an x-by-x-by-x grid in [-1,1]^3.
+
+Results for SMPL model (13776 faces, 6890 vertices)
+
+| Grid resolution | multiperson SDF runtime, ms | our runtime, ms (robust) |  our runtime, ms (non-robust) | speedup (robust) |
+| ------------    | ------------             | ------------          | ------------       |  ------------       |
+| 32              | 46.70460891723633        | 13.006210327148438    | 7.317066192626953  | 3.59 |
+| 64              | 236.6414031982422        | 62.57128715515137     | 51.19466781616211  | 3.78 |
+| 128             | 1521.0322265625          | 400.36678314208984    | 347.3823070526123  | 3.80 |
+
+Results for SMPL-X model (20908 faces, 10475 vertices).
+
+| Grid resolution | multiperson SDF runtime, ms | our runtime, ms (robust) |  our runtime, ms (non-robust) | speedup (robust) |
+| ------------    | ------------             | ------------          | ------------       |  ------------       |
+| 32              | 71.34893035888672        | 13.09061050415039     | 8.291006088256836  | 5.45 |
+| 64              | 353.7056579589844        | 66.21336936950684     | 57.36279487609863  | 5.34 |
+| 128             | 2303.649658203125        | 477.12063789367676    | 396.78120613098145 | 4.83 |
+
+Notes:
+- This is not really a fair comparison, since the SDF computed in multiperson is more exact (computes distance to all faces) and mine is approximate (only distance to faces adjacent to nearest neighbors). Both methods are prone to numerical error but perhaps mine is more so.
+- Basically the more faces the mesh has, the more performance advantage our method has. For small meshes with very few faces the CUDA implementation should be somewhat faster.
+- My implementation is designed to evaluate on arbitrary continuous points, so it requires the meshgrid points to be generated and passed, while the implementation in multiperson assumes a grid which it generates on the fly, potentially saving some memory access time especially when resolution is high.
 
 ## License
 BSD 2-clause
