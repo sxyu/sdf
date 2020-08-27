@@ -319,6 +319,7 @@ struct SDF::Impl {
                                  face_area_cum.data() + face_area_cum.rows(),
                                  rand_area[j]) -
                 face_area_cum.data();
+            i = std::max(std::min<int>(i, faces.rows() - 1), 0);
 
             const auto face = faces.row(i);
             const auto a = verts.row(face[0]), b = verts.row(face[1]),
