@@ -3,7 +3,7 @@ from setuptools.command.build_ext import build_ext
 import sys
 import setuptools
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'
 
 
 class get_pybind_include(object):
@@ -189,7 +189,7 @@ setup(
     author='Alex Yu',
     author_email='alexyu99126@gmail.com',
     description=
-    'SDF: Convert triangle mesh to continuous signed distance function',
+    'SDF: Convert triangle mesh to continuous signed distance function + some other mesh utilities',
     long_description=
     'Convert triangle mesh to SDF https://github.com/sxyu/sdf. Also includes uniform surface sampling and a ray-casting based software renderer.',
     url='https://github.com/sxyu/sdf',

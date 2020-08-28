@@ -2,8 +2,18 @@
 
 #include <iostream>
 #include <limits>
+#include <functional>
 #include "sdf/internal/RTree.h"
 #include "sdf/internal/sdf_util.hpp"
+
+namespace {
+using IntMatrix =
+    Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+using ByteMatrix =
+    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+using FloatMatrix =
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+}  // namespace
 
 namespace sdf {
 struct Renderer::Impl {
@@ -43,69 +53,75 @@ struct Renderer::Impl {
         }
     }
 
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_depth() const {
-        Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    template <class T>
+    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> render(
+        std::function<bool(T&, Eigen::Ref<const Eigen::Matrix<float, 1, 3>>,
+                           Eigen::Ref<const Eigen::Matrix<Index, 1, 3>>)>
+            face_handler,
+        T init_val) const {
+        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
             result(height, width);
-        result.setConstant(std::numeric_limits<float>::max());
+        result.setConstant(init_val);
         maybe_parallel_for(
             [&](int i) {
                 int r = i / width, c = i % width;
                 Eigen::Matrix<float, 1, 2, Eigen::RowMajor> point;
                 point << (float)c, (float)r;
-                float& depth = result.data()[i];
+                T& data = result.data()[i];
                 auto check_face = [&](int faceid) -> bool {
                     const auto face = faces.row(faceid);
-                    const auto bary = util::bary2d<float>(
+                    const Eigen::Matrix<float, 1, 3> bary = util::bary2d<float>(
                         point, verts_cam.row(face[0]), verts_cam.row(face[1]),
                         verts_cam.row(face[2]));
-                    if (bary[0] >= 0.f && bary[1] >= 0.f && bary[2] >= 0.f) {
-                        const float new_depth = verts(face[0], 2) * bary[0] +
-                                                verts(face[1], 2) * bary[1] +
-                                                verts(face[2], 2) * bary[2];
-                        depth = std::min(depth, new_depth);
-                    }
+                    if (bary[0] >= 0.f && bary[1] >= 0.f && bary[2] >= 0.f)
+                        return face_handler(data, bary, face);
                     return true;
                 };
                 Eigen::Matrix<float, 1, 2, Eigen::RowMajor> aabb_min, aabb_max;
                 aabb_min.noalias() = point;
                 aabb_max.noalias() = point;
                 rtree.Search(aabb_min.data(), aabb_max.data(), check_face);
-                if (depth == std::numeric_limits<float>::max()) depth = 0.0f;
+                if (data == std::numeric_limits<float>::max()) data = 0.0f;
             },
             width * height);
         return result;
     }
 
-    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_mask() const {
-        Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-            result(height, width);
-        result.setZero();
-        maybe_parallel_for(
-            [&](int i) {
-                int r = i / width, c = i % width;
-                Eigen::Matrix<float, 1, 2, Eigen::RowMajor> point;
-                point << (float)c, (float)r;
-                uint8_t& contained = result.data()[i];
-                auto check_face = [&](int faceid) -> bool {
-                    const auto face = faces.row(faceid);
-                    const auto bary = util::bary2d<float>(
-                        point, verts_cam.row(face[0]), verts_cam.row(face[1]),
-                        verts_cam.row(face[2]));
-                    if (bary[0] >= 0.f && bary[1] >= 0.f && bary[2] >= 0.f) {
-                        contained = 255;
-                        return false;
-                    }
-                    return true;
-                };
-                Eigen::Matrix<float, 1, 2, Eigen::RowMajor> aabb_min, aabb_max;
-                aabb_min.noalias() = point;
-                aabb_max.noalias() = point;
-                rtree.Search(aabb_min.data(), aabb_max.data(), check_face);
+    FloatMatrix render_depth() const {
+        return render<float>(
+            [&](float& depth, Eigen::Ref<const Eigen::Matrix<float, 1, 3>> bary,
+                Eigen::Ref<const Eigen::Matrix<Index, 1, 3>> face) -> bool {
+                const float new_depth = verts(face[0], 2) * bary[0] +
+                                        verts(face[1], 2) * bary[1] +
+                                        verts(face[2], 2) * bary[2];
+                depth = std::min(depth, new_depth);
+                return true;
             },
-            width * height);
-        return result;
+            std::numeric_limits<float>::max());
+    }
+
+    ByteMatrix render_mask() const {
+        return render<uint8_t>(
+            [&](uint8_t& contained,
+                Eigen::Ref<const Eigen::Matrix<float, 1, 3>> bary,
+                Eigen::Ref<const Eigen::Matrix<Index, 1, 3>> face) -> bool {
+                contained = 255;
+                return false;
+            },
+            uint8_t(0));
+    }
+
+    IntMatrix render_vertex() const {
+        return render<int>(
+            [&](int& vertex, Eigen::Ref<const Eigen::Matrix<float, 1, 3>> bary,
+                Eigen::Ref<const Eigen::Matrix<Index, 1, 3>> face) -> bool {
+                for (int i = 0; i < 3; ++i) {
+                    if (vertex == -1 || verts(face[i], 2) < verts(vertex, 2))
+                        vertex = face[i];
+                }
+                return true;
+            },
+            -1);
     }
 
     // Input vertices
@@ -150,6 +166,11 @@ Renderer::render_depth() const {
 Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
 Renderer::render_mask() const {
     return p_impl->render_mask();
+}
+
+Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+Renderer::render_vertex() const {
+    return p_impl->render_vertex();
 }
 
 void Renderer::update() { p_impl->update(); }

@@ -296,6 +296,11 @@ struct Renderer {
     Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
     render_mask() const;
 
+    // Render per-vertex map. Value is -1 if empty space, index of vertex in
+    // verts else
+    Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    render_vertex() const;
+
     // Call if vertex positions have been updated to rebuild the KD tree
     // and update face normals+areas
     void update();

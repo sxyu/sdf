@@ -89,10 +89,14 @@ PYBIND11_MODULE(pysdf, m) {
              py::arg("cy") = 540.f, py::arg("copy") = true)
         .def("render_depth", &Renderer::render_depth,
              "Render a depth image, with camera facing +z, right=+x, up=-y. 0 "
-             "means no object.")
-        .def("render_mask", &Renderer::render_mask,
-             "Render a mask (silhouette), with camera facing +z, right=+x, "
-             "up=-y. 0 means no object, 255 means object present.")
+             "means no object. dtype float")
+        .def(
+            "render_mask", &Renderer::render_mask,
+            "Render a mask (silhouette), with camera facing +z, right=+x, "
+            "up=-y. 0 means no object, 255 means object present. dtype uint8_t")
+        .def("render_vertex", &Renderer::render_vertex,
+             "Render a map of nearest vertex indices, more specifically "
+             "closest vertex of first triangle hit by ray. dtype int")
         .def("update", &Renderer::update,
              "Update the Renderer to reflect any changes in verts")
         .def_property_readonly("faces", &Renderer::faces,
