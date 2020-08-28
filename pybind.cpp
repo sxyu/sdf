@@ -99,32 +99,27 @@ PYBIND11_MODULE(pysdf, m) {
              "+z direction in image space hits the mesh. This is the "
              "continuous point version of render_mask",
              py::arg("points"))
-        .def("vertex", &Renderer::vertex,
+        .def("nn", &Renderer::nn,
              "Compute index of closest vertex hit by a ray cast from (x, y, "
              "0) in image space. -1 if no vertex. Continuous point version of "
-             "render_vertex",
-             py::arg("points"))
-        .def(
-            "nn", &Renderer::nn,
-            "Compute nearest neighbor vertex indices, "
-            "where nearest-neighbor is computed in image space to point (x, y, "
-            "0). Continuous point version of render_nn",
-            py::arg("points"))
+             "render_nn."
+             "For pixels in empty space, returns 2D (xy) nearest-neighbor "
+             "if fill_outside is true, or -1 else (default). "
+             "dtype int.",
+             py::arg("points"), py::arg("fill_outside") = true)
         .def("render_depth", &Renderer::render_depth,
              "Render a depth image, with camera facing +z, right=+x, up=-y. 0 "
              "means no object. dtype float")
         .def("render_mask", &Renderer::render_mask,
              "Render a mask (silhouette), with camera facing +z, right=+x, "
              "up=-y. 0 means no object, 1 means object present. dtype bool")
-        .def("render_vertex", &Renderer::render_vertex,
+        .def("render_nn", &Renderer::render_nn,
              "Render a map of vertex indices, more specifically "
-             "closest (in 2D) vertex of first triangle hit by ray. -1 if no "
-             "verex. dtype int")
-        .def(
-            "render_nn", &Renderer::render_nn,
-            "Render a map of nearest neighbor vertex indices, "
-            "where nearest-neighbor is computed in image space to point (c, r, "
-            "0). dtype int")
+             "closest (in 2D) vertex of first triangle hit by ray. "
+             "For pixels in empty space, returns 2D (xy) nearest-neighbor "
+             "if fill_outside is true, or -1 else (default). "
+             "dtype int.",
+             py::arg("fill_outside") = false)
         .def("update", &Renderer::update,
              "Update the Renderer to reflect any changes in verts")
         .def_property_readonly("faces", &Renderer::faces,

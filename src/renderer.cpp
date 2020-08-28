@@ -103,32 +103,13 @@ struct Renderer::Impl {
     }
 
     Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_vertex() const {
+    render_nn(bool fill_outside) const {
+        if (fill_outside && !kdtree_ready) {
+            kd_tree.rebuild();
+            kdtree_ready = true;
+        }
         return _render_image<int>((FaceHandler<int>)&Impl::_vertex_face_handler,
-                                  -1);
-    }
-
-    Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_nn() const {
-        if (!kdtree_ready) kd_tree.rebuild();
-        Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-            result(height, width);
-        maybe_parallel_for(
-            [&](int i) {
-                int r = i / width, c = i % width;
-                RowVec2 point;
-                point << (float)c, (float)r;
-
-                size_t index;
-                float dist;
-                nanoflann::KNNResultSet<float> resultSet(1);
-                resultSet.init(&index, &dist);
-                kd_tree.index->findNeighbors(resultSet, point.data(),
-                                             nanoflann::SearchParams(10));
-                result.data()[i] = static_cast<int>(index);
-            },
-            width * height);
-        return result;
+                                  -1, false, fill_outside);
     }
 
     Vector calc_depth(Eigen::Ref<const Points2D> points) const {
@@ -143,26 +124,14 @@ struct Renderer::Impl {
                            uint8_t(0));
     }
 
-    Eigen::VectorXi calc_vertex(Eigen::Ref<const Points2D> points) const {
+    Eigen::VectorXi calc_vertex(Eigen::Ref<const Points2D> points,
+                                bool fill_outside) const {
+        if (fill_outside && !kdtree_ready) {
+            kd_tree.rebuild();
+            kdtree_ready = true;
+        }
         return _calc<int>(points, (FaceHandler<int>)&Impl::_vertex_face_handler,
-                          -1);
-    }
-
-    Eigen::VectorXi calc_nn(Eigen::Ref<const Points2D> points) const {
-        if (!kdtree_ready) kd_tree.rebuild();
-        Eigen::VectorXi result(points.rows());
-        maybe_parallel_for(
-            [&](int i) {
-                size_t index;
-                float dist;
-                nanoflann::KNNResultSet<float> resultSet(1);
-                resultSet.init(&index, &dist);
-                kd_tree.index->findNeighbors(resultSet, points.data() + i * 2,
-                                             nanoflann::SearchParams(10));
-                result[i] = static_cast<int>(index);
-            },
-            points.rows());
-        return result;
+                          -1, false, fill_outside);
     }
 
     // Input vertices
@@ -202,7 +171,8 @@ struct Renderer::Impl {
     template <class T>
     Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
     _render_image(FaceHandler<T> face_handler, T init_val,
-                  bool max_to_zero = false) const {
+                  bool max_to_zero = false,
+                  bool fill_outside_nn = false) const {
         Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
             result(height, width);
         result.setConstant(init_val);
@@ -216,6 +186,16 @@ struct Renderer::Impl {
 
                 if (max_to_zero && data == std::numeric_limits<float>::max())
                     data = 0.0f;
+
+                if (fill_outside_nn && data < T(0)) {
+                    size_t index;
+                    float dist;
+                    nanoflann::KNNResultSet<float> resultSet(1);
+                    resultSet.init(&index, &dist);
+                    kd_tree.index->findNeighbors(resultSet, point.data(),
+                                                 nanoflann::SearchParams(10));
+                    data = static_cast<int>(index);
+                }
             },
             width * height);
         return result;
@@ -224,7 +204,8 @@ struct Renderer::Impl {
     template <class T>
     Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> _calc(
         const Eigen::Ref<const Points2D>& points, FaceHandler<T> face_handler,
-        T init_val, bool max_to_zero = false) const {
+        T init_val, bool max_to_zero = false,
+        bool fill_outside_nn = false) const {
         Eigen::Matrix<T, Eigen::Dynamic, 1> result(points.rows());
         result.setConstant(init_val);
         maybe_parallel_for(
@@ -233,7 +214,18 @@ struct Renderer::Impl {
                 _raycast<T>(points.row(i), face_handler, data);
 
                 if (max_to_zero && data == std::numeric_limits<float>::max())
-                    data = 0.0f;
+                    data = T(0.0f);
+
+                if (fill_outside_nn && data < T(0)) {
+                    size_t index;
+                    float dist;
+                    nanoflann::KNNResultSet<float> resultSet(1);
+                    resultSet.init(&index, &dist);
+                    kd_tree.index->findNeighbors(resultSet,
+                                                 points.data() + i * 2,
+                                                 nanoflann::SearchParams(10));
+                    data = static_cast<T>(index);
+                }
             },
             result.rows());
         return result;
@@ -248,7 +240,7 @@ struct Renderer::Impl {
         kd_tree;
 
     // Whether KD tree is ready to use
-    bool kdtree_ready;
+    mutable bool kdtree_ready;
 };
 
 Renderer::Renderer(Eigen::Ref<const Points> verts,
@@ -277,13 +269,8 @@ Renderer::render_mask() const {
 }
 
 Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-Renderer::render_vertex() const {
-    return p_impl->render_vertex();
-}
-
-Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-Renderer::render_nn() const {
-    return p_impl->render_nn();
+Renderer::render_nn(bool fill_outside) const {
+    return p_impl->render_nn(fill_outside);
 }
 
 void Renderer::update() { p_impl->update(); }
@@ -315,12 +302,9 @@ Eigen::Matrix<bool, Eigen::Dynamic, 1> Renderer::contains(
     return p_impl->calc_mask(points);
 }
 
-Eigen::VectorXi Renderer::vertex(Eigen::Ref<const Points2D> points) const {
-    return p_impl->calc_vertex(points);
-}
-
-Eigen::VectorXi Renderer::nn(Eigen::Ref<const Points2D> points) const {
-    return p_impl->calc_nn(points);
+Eigen::VectorXi Renderer::nn(Eigen::Ref<const Points2D> points,
+                             bool fill_outside) const {
+    return p_impl->calc_vertex(points, fill_outside);
 }
 
 Renderer::~Renderer() = default;

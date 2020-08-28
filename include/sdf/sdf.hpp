@@ -256,11 +256,11 @@ struct SDF {
 
 // Image-space raycast renderer utility for watertight meshes.
 //
-// Renders depth maps (render_depth), object mask (render_mask),
-// vertex ids (render_vertex), or clip space nearest neighbors (render_nn)
+// Renders depth maps (render_depth), object mask (render_mask), and
+// vertex ids (render_nn)
 // using raycasting in image space. Also supports querying these for
 // arbitrary continuous points (x, y) in image space
-// (operator(), contains, vertex, nn).
+// (operator(), contains, nn).
 //
 // By image space we mean the space of (x,y,z)
 // where a pinhole camera perspective projection was applied to x,y.
@@ -315,17 +315,10 @@ struct Renderer {
     // Render (height, width) vertex map, i.e. vertex id nearest to raycast hit
     // at each pixel. Each pixel is -1 if empty space, index of vertex in verts
     // else
+    // @param fill_outside if true, instead of returning -1 for empty space,
+    // finds nearest-neighbor vertex in 2d and uses its index
     Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_vertex() const;
-
-    // Render nearest-neighbor vertex map. Each pixel is index of vertex in
-    // verts which is closest to (c, r) in image space.
-    //
-    // Note this differs from render_vertex in that it returns a vertex id
-    // for every point on the image and the nearest-neighbor is not
-    // necessarily straight ahead.
-    Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_nn() const;
+    render_nn(bool fill_outside = false) const;
 
     // Compute depth at 2D points
     // (render_depth for continuous points)
@@ -336,12 +329,12 @@ struct Renderer {
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
         Eigen::Ref<const Points2D> points) const;
 
-    // Compute vertex map at 2D points (render_vertex for continuous points)
-    Eigen::VectorXi vertex(Eigen::Ref<const Points2D> points) const;
-
-    // Compute nearest-neighbor map at 2D points (render_nn for continuous
-    // points)
-    Eigen::VectorXi nn(Eigen::Ref<const Points2D> points) const;
+    // Compute vertex id hit by raycast at 2D points
+    // (render_vertex for continuous points)
+    // @param fill_outside if true, instead of returning -1 for empty space,
+    // finds nearest-neighbor vertex in 2d and uses its index
+    Eigen::VectorXi nn(Eigen::Ref<const Points2D> points,
+                       bool fill_outside = false) const;
 
     // Call if vertex positions have been updated to rebuild the KD tree
     // and update face normals+areas
