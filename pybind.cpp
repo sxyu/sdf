@@ -87,16 +87,44 @@ PYBIND11_MODULE(pysdf, m) {
              py::arg("height") = 1080, py::arg("fx") = 2600.f,
              py::arg("fy") = 2600.f, py::arg("cx") = 540.f,
              py::arg("cy") = 540.f, py::arg("copy") = true)
+        .def("__call__", &Renderer::operator(),
+             "Compute depth on 2D image-space points (0 if nothing there)",
+             py::arg("points"))
+        .def("calc", &Renderer::operator(),
+             "Compute depth on 2D image-space points (0 if nothing there), "
+             "alias of __call__",
+             py::arg("points"))
+        .def("contains", &Renderer::contains,
+             "For each point, returns true if the ray cast from (x, y, 0) in"
+             "+z direction in image space hits the mesh. This is the "
+             "continuous point version of render_mask",
+             py::arg("points"))
+        .def("vertex", &Renderer::vertex,
+             "Compute index of closest vertex hit by a ray cast from (x, y, "
+             "0) in image space. -1 if no vertex. Continuous point version of "
+             "render_vertex",
+             py::arg("points"))
+        .def(
+            "nn", &Renderer::nn,
+            "Compute nearest neighbor vertex indices, "
+            "where nearest-neighbor is computed in image space to point (x, y, "
+            "0). Continuous point version of render_nn",
+            py::arg("points"))
         .def("render_depth", &Renderer::render_depth,
              "Render a depth image, with camera facing +z, right=+x, up=-y. 0 "
              "means no object. dtype float")
-        .def(
-            "render_mask", &Renderer::render_mask,
-            "Render a mask (silhouette), with camera facing +z, right=+x, "
-            "up=-y. 0 means no object, 255 means object present. dtype uint8_t")
+        .def("render_mask", &Renderer::render_mask,
+             "Render a mask (silhouette), with camera facing +z, right=+x, "
+             "up=-y. 0 means no object, 1 means object present. dtype bool")
         .def("render_vertex", &Renderer::render_vertex,
-             "Render a map of nearest vertex indices, more specifically "
-             "closest vertex of first triangle hit by ray. dtype int")
+             "Render a map of vertex indices, more specifically "
+             "closest (in 2D) vertex of first triangle hit by ray. -1 if no "
+             "verex. dtype int")
+        .def(
+            "render_nn", &Renderer::render_nn,
+            "Render a map of nearest neighbor vertex indices, "
+            "where nearest-neighbor is computed in image space to point (c, r, "
+            "0). dtype int")
         .def("update", &Renderer::update,
              "Update the Renderer to reflect any changes in verts")
         .def_property_readonly("faces", &Renderer::faces,

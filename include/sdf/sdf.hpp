@@ -41,6 +41,7 @@ namespace sdf {
 
 using Index = uint32_t;
 using Points = Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>;
+using Points2D = Eigen::Matrix<float, Eigen::Dynamic, 2, Eigen::RowMajor>;
 using Triangles = Eigen::Matrix<Index, Eigen::Dynamic, 3, Eigen::RowMajor>;
 using Matrix =
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
@@ -71,7 +72,7 @@ T dist_point2lineseg(
 }
 
 template <class T>
-const Eigen::Matrix<T, 1, 3> normal(
+const Eigen::Matrix<T, 1, 3, Eigen::RowMajor> normal(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c) {
@@ -83,7 +84,7 @@ template <class T>
 // (p does NOT have to be projected to plane beforehand)
 // normal, area_abc to be computed using util::normal,
 // where normal is normalized vector, area is magnitude
-Eigen::Matrix<T, 1, 3> bary(
+Eigen::Matrix<T, 1, 3, Eigen::RowMajor> bary(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
@@ -125,7 +126,7 @@ T dist_point2tri(
 }
 
 template <class T>
-Eigen::Matrix<T, 1, 3> bary2d(
+Eigen::Matrix<T, 1, 3, Eigen::RowMajor> bary2d(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& p,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& a,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& b,
@@ -155,7 +156,7 @@ struct SDF {
     // Check containment (returns bool): sdf.contains(query_points);
     //
     // @param verts mesh vertices. If the contents of this matrix are modified,
-    // please call sdf.update() to update the internal representation.
+    // please call SDF::update() to update the internal representation.
     // Else the results will be incorrect.
     // @param faces mesh faces. The contents of this matrix should not be
     // modified for the lifetime of this instance.
@@ -182,11 +183,12 @@ struct SDF {
     // WARNING: if robust=false (from constructor), this WILL FAIL if the mesh
     // has self-intersections. In particular, the signs of points inside the
     // mesh may be flipped.
-    Vector operator()(Eigen::Ref<const Points> points, bool trunc_aabb = false);
+    Vector operator()(Eigen::Ref<const Points> points,
+                      bool trunc_aabb = false) const;
 
     // Return exact nearest neighbor vertex index for each point (index as in
     // input verts)
-    Eigen::VectorXi nn(Eigen::Ref<const Points> points);
+    Eigen::VectorXi nn(Eigen::Ref<const Points> points) const;
 
     // Return 1 for each point inside/on surface of the mesh and 0 for outside.
     //
@@ -196,7 +198,7 @@ struct SDF {
     // WARNING: if robust=false (from constructor), this WILL FAIL if the mesh
     // has self-intersections.
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
-        Eigen::Ref<const Points> points);
+        Eigen::Ref<const Points> points) const;
 
     // Call if vertex positions have been updated to rebuild the KD tree
     // and update face normals+areas
@@ -252,20 +254,32 @@ struct SDF {
 #endif
 };
 
-// Parallel software renderer for generating depth maps or masks.
-// NOTE: Assumes no objects are present where z <= 0
-// Uses raycasting in clip space.
+// Image-space raycast renderer utility for watertight meshes.
 //
+// Renders depth maps (render_depth), object mask (render_mask),
+// vertex ids (render_vertex), or clip space nearest neighbors (render_nn)
+// using raycasting in image space. Also supports querying these for
+// arbitrary continuous points (x, y) in image space
+// (operator(), contains, vertex, nn).
+//
+// By image space we mean the space of (x,y,z)
+// where a pinhole camera perspective projection was applied to x,y.
+// This class is somehow similar to sdf::SDF but in
+// image space and only available on the image plane.
+//
+// NOTE: We assume no objects are present where z <= 0. This allows
+// us to use 2D data structures and skip a check.
+//
+// This is not a very efficient method.
 // If object has relatively few points compared to image size,
-// painter's algorithm (implemented in sxyu/avatar) may perform better,
-// although it leads to some artifacts.
+// painter's algorithm (implemented in sxyu/avatar) probably performs better.
 //
 // Assumes camera is at origin facing +z, where up is -y and right is +x.
 // Note the coordinate system is right-handed.
 struct Renderer {
     // Construct software renderer
     // @param verts mesh vertices. If the contents of this matrix are modified,
-    // please call sdf.update() to update the internal representation.
+    // please call Renderer::update() to update the internal representation.
     // Else the results will be incorrect.
     // @param faces mesh faces. The contents of this matrix should not be
     // modified for the lifetime of this instance.
@@ -287,19 +301,47 @@ struct Renderer {
     ~Renderer();
 
     // *** PRIMARY INTERFACE ***
-    // Render depth map.
-    // Value shall be distance from z=0 plane and 0 if no object is present.
+    // Render (height, width) depth map of the mesh.
+    // @return Each pixel will be distance from z=0 plane and 0 if no object is
+    // present.
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
     render_depth() const;
 
-    // Render mask. Value is 255 where object is present.
-    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    // Render (height, width) mask.
+    // @return Each pixel is 1 where object is present, 0 else.
+    Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
     render_mask() const;
 
-    // Render per-vertex map. Value is -1 if empty space, index of vertex in
-    // verts else
+    // Render (height, width) vertex map, i.e. vertex id nearest to raycast hit
+    // at each pixel. Each pixel is -1 if empty space, index of vertex in verts
+    // else
     Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
     render_vertex() const;
+
+    // Render nearest-neighbor vertex map. Each pixel is index of vertex in
+    // verts which is closest to (c, r) in image space.
+    //
+    // Note this differs from render_vertex in that it returns a vertex id
+    // for every point on the image and the nearest-neighbor is not
+    // necessarily straight ahead.
+    Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    render_nn() const;
+
+    // Compute depth at 2D points
+    // (render_depth for continuous points)
+    Vector operator()(Eigen::Ref<const Points2D> points) const;
+
+    // Compute mask at 2D points (1 means inside)
+    // (render_mask for continuous points)
+    Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
+        Eigen::Ref<const Points2D> points) const;
+
+    // Compute vertex map at 2D points (render_vertex for continuous points)
+    Eigen::VectorXi vertex(Eigen::Ref<const Points2D> points) const;
+
+    // Compute nearest-neighbor map at 2D points (render_nn for continuous
+    // points)
+    Eigen::VectorXi nn(Eigen::Ref<const Points2D> points) const;
 
     // Call if vertex positions have been updated to rebuild the KD tree
     // and update face normals+areas
