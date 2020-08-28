@@ -12,6 +12,7 @@ using namespace sdf;
 PYBIND11_MODULE(pysdf, m) {
     m.doc() =
         R"pbdoc(SDF: Convert triangle mesh to continuous signed distance function)pbdoc";
+
     py::class_<SDF>(m, "SDF")
         .def(py::init<Eigen::Ref<const Points>, Eigen::Ref<const Triangles>,
                       bool, bool>(),
@@ -72,18 +73,64 @@ PYBIND11_MODULE(pysdf, m) {
             "own_data", &SDF::own_data,
             "Whether SDF owns verts/faces data (constructed with copy=True), "
             "so you can change them with verts_mutable/faces_mutable")
-        .def_property_readonly_static(
-            "num_threads",
-            [](const py::object& _) {
-                return std::thread::hardware_concurrency();
-            },
-            "Max number of threads")
         .def("__repr__", [](const SDF& sdf) {
             return "<sdf.SDF(verts.shape=(" +
                    std::to_string(sdf.verts().rows()) + ", 3), faces.shape=(" +
                    std::to_string(sdf.faces().rows()) +
                    ", 3), robust=" + (sdf.robust ? "True" : "False") + ")>";
         });
+
+    py::class_<Renderer>(m, "Renderer")
+        .def(py::init<Eigen::Ref<const Points>, Eigen::Ref<const Triangles>,
+                      int, int, float, float, float, float, bool>(),
+             py::arg("verts"), py::arg("faces"), py::arg("width") = 1080,
+             py::arg("height") = 1080, py::arg("fx") = 2600.f,
+             py::arg("fy") = 2600.f, py::arg("cx") = 540.f,
+             py::arg("cy") = 540.f, py::arg("copy") = true)
+        .def("render_depth", &Renderer::render_depth,
+             "Render a depth image, with camera facing +z, right=+x, up=-y. 0 "
+             "means no object.")
+        .def("render_mask", &Renderer::render_mask,
+             "Render a mask (silhouette), with camera facing +z, right=+x, "
+             "up=-y. 0 means no object, 255 means object present.")
+        .def("update", &Renderer::update,
+             "Update the Renderer to reflect any changes in verts")
+        .def_property_readonly("faces", &Renderer::faces,
+                               "Mesh faces passed to Renderer constructor")
+        .def_property_readonly("verts", &Renderer::verts,
+                               "Mesh vertices passed to Renderer constructor")
+        .def_property(
+            "faces_mutable", &Renderer::faces_mutable,
+            [](Renderer& rend, Eigen::Ref<const Triangles> val) {
+                rend.faces_mutable() = val;
+            },
+            "Mesh faces passed to Renderer constructor")
+        .def_property(
+            "verts_mutable", &Renderer::verts_mutable,
+            [](Renderer& rend, Eigen::Ref<const Points> val) {
+                rend.verts_mutable() = val;
+            },
+            "Mesh vertices passed to Renderer constructor")
+        .def_property(
+            "vertices_mutable", &Renderer::verts_mutable,
+            [](Renderer& rend, Eigen::Ref<const Points> val) {
+                rend.verts_mutable() = val;
+            },
+            "Mesh vertices passed to Renderer constructor")
+        .def_property_readonly(
+            "vertices", &Renderer::verts,
+            "Mesh vertices passed to Renderer constructor (alias "
+            "for verts for trimesh compatibility)")
+        .def_readonly("own_data", &Renderer::own_data,
+                      "Whether Renderer owns verts/faces data (constructed "
+                      "with copy=True), "
+                      "so you can change them with verts_mutable/faces_mutable")
+        .def("__repr__", [](const Renderer& rend) {
+            return "<sdf.Renderer(verts.shape=(" +
+                   std::to_string(rend.verts().rows()) + ", 3), faces.shape=(" +
+                   std::to_string(rend.faces().rows()) + ", 3)>";
+        });
+
     py::module m_util = m.def_submodule("util");
     using RefConstRowVec3f =
         const Eigen::Ref<const Eigen::Matrix<float, 1, 3, Eigen::RowMajor>>;
@@ -114,6 +161,7 @@ PYBIND11_MODULE(pysdf, m) {
                 return util::dist_point2tri<float>(p, a, b, c, normal, area);
             },
             "Compute 3d point-triangle squared distance")
-        .def("point_in_tri_2d", &util::point_in_tri_2d<float>,
+        .def("bary2d", &util::bary2d<float>,
              "Test if point is in triangle (2d)");
+    m.attr("num_threads") = std::thread::hardware_concurrency();
 }

@@ -3,7 +3,7 @@ from setuptools.command.build_ext import build_ext
 import sys
 import setuptools
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 
 class get_pybind_include(object):
@@ -98,7 +98,8 @@ ext_modules = [
         'pysdf',
         # Sort input source files to ensure bit-for-bit reproducible builds
         # (https://github.com/pybind/python_example/pull/53)
-        sorted(['src/sdf.cpp', 'pybind.cpp']),
+        sorted(
+            ['src/sdf.cpp', 'src/util.cpp', 'src/renderer.cpp', 'pybind.cpp']),
         include_dirs=[
             'include',
             # Path to pybind11 headers
@@ -189,7 +190,9 @@ setup(
     author_email='alexyu99126@gmail.com',
     description=
     'SDF: Convert triangle mesh to continuous signed distance function',
-    long_description='',
+    long_description=
+    'Convert triangle mesh to SDF https://github.com/sxyu/sdf. Also includes uniform surface sampling and a ray-casting based software renderer.',
+    url='https://github.com/sxyu/sdf',
     ext_modules=ext_modules,
     setup_requires=['pybind11>=2.5.0'],
     cmdclass={'build_ext': BuildExt},

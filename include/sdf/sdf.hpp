@@ -125,20 +125,19 @@ T dist_point2tri(
 }
 
 template <class T>
-// Returns true if 2D point is in 2D triangle.
-bool point_in_tri_2d(
+Eigen::Matrix<T, 1, 3> bary2d(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& p,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& a,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& b,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 2, Eigen::RowMajor>>& c) {
     Eigen::Matrix<T, 1, 2, Eigen::RowMajor> v0 = b - a, v1 = c - a, v2 = p - a;
+    Eigen::Matrix<T, 1, 3> result;
     const float invden = 1.f / (v0.x() * v1.y() - v1.x() * v0.y());
-    const float v = (v2.x() * v1.y() - v1.x() * v2.y()) * invden;
-    const float w = (v0.x() * v2.y() - v2.x() * v0.y()) * invden;
-    const float u = 1.0f - v - w;
-    return v >= 0.f && w >= 0.f && u >= 0.f;
+    result[1] = (v2.x() * v1.y() - v1.x() * v2.y()) * invden;
+    result[2] = (v0.x() * v2.y() - v2.x() * v0.y()) * invden;
+    result[0] = 1.0f - result.template tail<2>().sum();
+    return result;
 }
-
 }  // namespace util
 
 // Signed distance function utility for watertight meshes.
@@ -236,6 +235,79 @@ struct SDF {
 
     // Whether SDF is in robust mode
     const bool robust;
+
+    // Whether we own data
+    const bool own_data;
+
+   private:
+    // Optional owned data
+    Points owned_verts;
+    Triangles owned_faces;
+
+    struct Impl;
+#ifdef __GNUC__
+    std::experimental::propagate_const<std::unique_ptr<Impl>> p_impl;
+#else
+    std::unique_ptr<Impl> p_impl;
+#endif
+};
+
+// Parallel software renderer for generating depth maps or masks.
+// NOTE: Assumes no objects are present where z <= 0
+// Uses raycasting in clip space.
+//
+// If object has relatively few points compared to image size,
+// painter's algorithm (implemented in sxyu/avatar) may perform better,
+// although it leads to some artifacts.
+//
+// Assumes camera is at origin facing +z, where up is -y and right is +x.
+// Note the coordinate system is right-handed.
+struct Renderer {
+    // Construct software renderer
+    // @param verts mesh vertices. If the contents of this matrix are modified,
+    // please call sdf.update() to update the internal representation.
+    // Else the results will be incorrect.
+    // @param faces mesh faces. The contents of this matrix should not be
+    // modified for the lifetime of this instance.
+    // @param width image width
+    // @param height image height
+    // @param fx focal length x
+    // @param fy focal length y
+    // @param cx principal point x
+    // @param cy principal point y
+    // @param copy whether to make a copy of the data instead of referencing it
+    // SDF/containment computation is robust to mesh self-intersections and
+    // facewinding but is slower.
+    Renderer(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
+             int width = 1080, int height = 1080, float fx = 2600.f,
+             float fy = 2600.f, float cx = 540.f, float cy = 540.f,
+             bool copy = false);
+
+    // Destructor, pImpl pattern needs this
+    ~Renderer();
+
+    // *** PRIMARY INTERFACE ***
+    // Render depth map.
+    // Value shall be distance from z=0 plane and 0 if no object is present.
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    render_depth() const;
+
+    // Render mask. Value is 255 where object is present.
+    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    render_mask() const;
+
+    // Call if vertex positions have been updated to rebuild the KD tree
+    // and update face normals+areas
+    void update();
+
+    /*** DATA ACCESSORS ***/
+    // Get faces
+    Eigen::Ref<const Triangles> faces() const;
+    Eigen::Ref<Triangles> faces_mutable();
+
+    // Get verts
+    Eigen::Ref<const Points> verts() const;
+    Eigen::Ref<Points> verts_mutable();
 
     // Whether we own data
     const bool own_data;

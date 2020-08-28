@@ -8,48 +8,9 @@
 #include <random>
 #include <algorithm>
 #include <chrono>
-#include "sdf/nanoflann.hpp"
-#include "sdf/RTree.h"
-
-namespace {
-// Min number of items to allow multithreading
-static const int MULTITHREAD_MIN_ITEMS = 50;
-void maybe_parallel_for(std::function<void(int&)> loop_content,
-                        int loop_max = MULTITHREAD_MIN_ITEMS,
-                        int num_threads = std::thread::hardware_concurrency()) {
-    std::atomic<int> counter(-1);
-    auto worker = [&]() {
-        while (true) {
-            int i = ++counter;
-            if (i >= loop_max) break;
-            loop_content(i);
-        }
-    };
-    if (loop_max >= MULTITHREAD_MIN_ITEMS) {
-        std::vector<std::thread> threads;
-        for (size_t i = 1; i < num_threads; ++i) {
-            threads.emplace_back(worker);
-        }
-        worker();
-        for (auto& thd : threads) {
-            thd.join();
-        }
-    } else {
-        worker();
-    }
-}
-
-// Get a seeded mersenne twister 19937
-std::mt19937& get_rng() {
-    // Safer seeding with time (random_device can be not availble)
-    thread_local std::mt19937 rg{
-        std::random_device{}() ^
-        static_cast<unsigned int>(std::chrono::high_resolution_clock::now()
-                                      .time_since_epoch()
-                                      .count())};
-    return rg;
-}
-}  // namespace
+#include "sdf/internal/nanoflann.hpp"
+#include "sdf/internal/RTree.h"
+#include "sdf/internal/sdf_util.hpp"
 
 namespace nanoflann {
 // Static KD-tree adaptor using Eigen::Ref, so we can pass in
@@ -414,14 +375,13 @@ struct SDF::Impl {
                 if ((normal.dot(point - verts.row(face[0]) * raycast_axes) *
                          normal[ax_idx] >
                      0.f) == ax_inv) {
-                    if (util::point_in_tri_2d<float>(
-                            point.segment<2>(ax_offs),
-                            (verts.row(face[0]) * raycast_axes)
-                                .segment<2>(ax_offs),
-                            (verts.row(face[1]) * raycast_axes)
-                                .segment<2>(ax_offs),
-                            (verts.row(face[2]) * raycast_axes)
-                                .segment<2>(ax_offs))) {
+                    const auto bary = util::bary2d<float>(
+                        point.segment<2>(ax_offs),
+                        (verts.row(face[0]) * raycast_axes).segment<2>(ax_offs),
+                        (verts.row(face[1]) * raycast_axes).segment<2>(ax_offs),
+                        (verts.row(face[2]) * raycast_axes)
+                            .segment<2>(ax_offs));
+                    if (bary[0] >= 0.f && bary[1] >= 0.f && bary[2] >= 0.f) {
                         contained ^= 1;
                     }
                 }
@@ -448,9 +408,9 @@ SDF::SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
     if (copy) {
         owned_verts = verts;
         owned_faces = faces;
-        p_impl = std::make_unique<SDF::Impl>(owned_verts, owned_faces, robust);
+        p_impl = std::make_unique<Impl>(owned_verts, owned_faces, robust);
     } else {
-        p_impl = std::make_unique<SDF::Impl>(verts, faces, robust);
+        p_impl = std::make_unique<Impl>(verts, faces, robust);
     }
 }
 

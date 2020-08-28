@@ -4,6 +4,9 @@ include MANIFEST.in
 include setup.py
 include pybind.cpp
 include src/sdf.cpp
+include src/renderer.cpp
+include src/util.cpp
 include include/sdf/sdf.hpp
-include include/sdf/nanoflann.hpp
-include include/sdf/RTree.h
+include include/sdf/internal/sdf_util.hpp
+include include/sdf/internal/nanoflann.hpp
+include include/sdf/internal/RTree.h
