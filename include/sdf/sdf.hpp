@@ -32,6 +32,7 @@
 
 #include <memory>
 #include <vector>
+#include <thread>
 #ifdef __GNUC__
 #include <experimental/propagate_const>
 #endif
@@ -184,11 +185,12 @@ struct SDF {
     // has self-intersections. In particular, the signs of points inside the
     // mesh may be flipped.
     Vector operator()(Eigen::Ref<const Points> points,
-                      bool trunc_aabb = false) const;
+                      bool trunc_aabb = false,
+                      int n_threads = std::thread::hardware_concurrency()) const;
 
     // Return exact nearest neighbor vertex index for each point (index as in
     // input verts)
-    Eigen::VectorXi nn(Eigen::Ref<const Points> points) const;
+    Eigen::VectorXi nn(Eigen::Ref<const Points> points, int n_threads = std::thread::hardware_concurrency()) const;
 
     // Return 1 for each point inside/on surface of the mesh and 0 for outside.
     //
@@ -198,7 +200,8 @@ struct SDF {
     // WARNING: if robust=false (from constructor), this WILL FAIL if the mesh
     // has self-intersections.
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
-        Eigen::Ref<const Points> points) const;
+        Eigen::Ref<const Points> points,
+        int n_threads = std::thread::hardware_concurrency()) const;
 
     // Call if vertex positions have been updated to rebuild the KD tree
     // and update face normals+areas
@@ -305,12 +308,12 @@ struct Renderer {
     // @return Each pixel will be distance from z=0 plane and 0 if no object is
     // present.
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_depth() const;
+    render_depth(int n_threads = std::thread::hardware_concurrency()) const;
 
     // Render (height, width) mask.
     // @return Each pixel is 1 where object is present, 0 else.
     Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_mask() const;
+    render_mask(int n_threads = std::thread::hardware_concurrency()) const;
 
     // Render (height, width) vertex map, i.e. vertex id nearest to raycast hit
     // at each pixel. Each pixel is -1 if empty space, index of vertex in verts
@@ -318,23 +321,23 @@ struct Renderer {
     // @param fill_outside if true, instead of returning -1 for empty space,
     // finds nearest-neighbor vertex in 2d and uses its index
     Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_nn(bool fill_outside = false) const;
+    render_nn(bool fill_outside = false, int n_threads = std::thread::hardware_concurrency()) const;
 
     // Compute depth at 2D points
     // (render_depth for continuous points)
-    Vector operator()(Eigen::Ref<const Points2D> points) const;
+    Vector operator()(Eigen::Ref<const Points2D> points, int n_threads = std::thread::hardware_concurrency()) const;
 
     // Compute mask at 2D points (1 means inside)
     // (render_mask for continuous points)
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
-        Eigen::Ref<const Points2D> points) const;
+        Eigen::Ref<const Points2D> points, int n_threads = std::thread::hardware_concurrency()) const;
 
     // Compute vertex id hit by raycast at 2D points
     // (render_vertex for continuous points)
     // @param fill_outside if true, instead of returning -1 for empty space,
     // finds nearest-neighbor vertex in 2d and uses its index
     Eigen::VectorXi nn(Eigen::Ref<const Points2D> points,
-                       bool fill_outside = false) const;
+                       bool fill_outside = false, int n_threads = std::thread::hardware_concurrency()) const;
 
     // Call if vertex positions have been updated to rebuild the KD tree
     // and update face normals+areas

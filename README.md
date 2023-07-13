@@ -35,6 +35,9 @@ random_surface_points = f.sample_surface(10000)
 
 # Misc: surface area
 the_surface_area = f.surface_area
+
+# All the functions also support an additional argument 'n_threads=<int>' to specify number of threads.
+# by default we use min(32, n_cpus) 
 ```
 To modify the vertices/faces, you can change
 `f.vertices_mutable` and `f.faces_mutable`, then call `f.update()` to 

@@ -9,6 +9,8 @@
 namespace py = pybind11;
 using namespace sdf;
 
+static const int DEFAULT_NUM_THREADS = std::min(static_cast<int>(std::thread::hardware_concurrency()), 32);
+
 PYBIND11_MODULE(pysdf, m) {
     m.doc() =
         R"pbdoc(SDF: Convert triangle mesh to continuous signed distance function)pbdoc";
@@ -20,13 +22,13 @@ PYBIND11_MODULE(pysdf, m) {
              py::arg("copy") = true)
         .def("__call__", &SDF::operator(),
              "Compute SDF on points (positive iff inside)", py::arg("points"),
-             py::arg("trunc_aabb") = false)
+             py::arg("trunc_aabb") = false, py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("calc", &SDF::operator(),
              "Compute SDF on points (positive iff inside), alias of __call__",
-             py::arg("points"), py::arg("trunc_aabb") = false)
+             py::arg("points"), py::arg("trunc_aabb") = false, py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("contains", &SDF::contains, "Test if points are in mesh",
-             py::arg("points"))
-        .def("nn", &SDF::nn, "Find nearest neighbor indices", py::arg("points"))
+             py::arg("points"), py::arg("n_threads") = DEFAULT_NUM_THREADS)
+        .def("nn", &SDF::nn, "Find nearest neighbor indices", py::arg("points"), py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("update", &SDF::update,
              "Update the SDF to reflect any changes in verts")
         .def("sample_surface", &SDF::sample_surface,
@@ -89,16 +91,16 @@ PYBIND11_MODULE(pysdf, m) {
              py::arg("cy") = 540.f, py::arg("copy") = true)
         .def("__call__", &Renderer::operator(),
              "Compute depth on 2D image-space points (0 if nothing there)",
-             py::arg("points"))
+             py::arg("points"), py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("calc", &Renderer::operator(),
              "Compute depth on 2D image-space points (0 if nothing there), "
              "alias of __call__",
-             py::arg("points"))
+             py::arg("points"), py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("contains", &Renderer::contains,
              "For each point, returns true if the ray cast from (x, y, 0) in"
              "+z direction in image space hits the mesh. This is the "
              "continuous point version of render_mask",
-             py::arg("points"))
+             py::arg("points"), py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("nn", &Renderer::nn,
              "Compute index of closest vertex hit by a ray cast from (x, y, "
              "0) in image space. -1 if no vertex. Continuous point version of "
@@ -106,20 +108,20 @@ PYBIND11_MODULE(pysdf, m) {
              "For pixels in empty space, returns 2D (xy) nearest-neighbor "
              "if fill_outside is true, or -1 else (default). "
              "dtype int.",
-             py::arg("points"), py::arg("fill_outside") = true)
+             py::arg("points"), py::arg("fill_outside") = true, py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("render_depth", &Renderer::render_depth,
              "Render a depth image, with camera facing +z, right=+x, up=-y. 0 "
-             "means no object. dtype float")
+             "means no object. dtype float", py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("render_mask", &Renderer::render_mask,
              "Render a mask (silhouette), with camera facing +z, right=+x, "
-             "up=-y. 0 means no object, 1 means object present. dtype bool")
+             "up=-y. 0 means no object, 1 means object present. dtype bool", py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("render_nn", &Renderer::render_nn,
              "Render a map of vertex indices, more specifically "
              "closest (in 2D) vertex of first triangle hit by ray. "
              "For pixels in empty space, returns 2D (xy) nearest-neighbor "
              "if fill_outside is true, or -1 else (default). "
              "dtype int.",
-             py::arg("fill_outside") = false)
+             py::arg("fill_outside") = false, py::arg("n_threads") = DEFAULT_NUM_THREADS)
         .def("update", &Renderer::update,
              "Update the Renderer to reflect any changes in verts")
         .def_property_readonly("faces", &Renderer::faces,
@@ -190,5 +192,5 @@ PYBIND11_MODULE(pysdf, m) {
             "Compute 3d point-triangle squared distance")
         .def("bary2d", &util::bary2d<float>,
              "Test if point is in triangle (2d)");
-    m.attr("num_threads") = std::thread::hardware_concurrency();
+    m.attr("num_threads") = DEFAULT_NUM_THREADS;
 }

@@ -72,7 +72,8 @@ struct SDF::Impl {
         face_area_cum.resize(0);
     }
 
-    Eigen::VectorXi nn(Eigen::Ref<const Points> points) const {
+    Eigen::VectorXi nn(Eigen::Ref<const Points> points,
+                        int n_threads = std::thread::hardware_concurrency()) const {
         Eigen::VectorXi result(points.rows());
         maybe_parallel_for(
             [&](int i) {
@@ -84,12 +85,14 @@ struct SDF::Impl {
                                              nanoflann::SearchParams(10));
                 result[i] = static_cast<int>(index);
             },
-            (int)points.rows());
+            (int)points.rows(),
+            n_threads);
         return result;
     }
 
     Vector calc(Eigen::Ref<const Points> points,
-                bool trunc_aabb = false) const {
+                bool trunc_aabb = false,
+                int n_threads = std::thread::hardware_concurrency()) const {
         Vector result(points.rows());
         result.setConstant(std::numeric_limits<float>::max());
 
@@ -149,20 +152,23 @@ struct SDF::Impl {
                     min_dist = -min_dist;
                 }
             },
-            (int)points.rows());
+            (int)points.rows(),
+            n_threads);
         return result;
     }
 
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
-        Eigen::Ref<const Points> points) const {
+        Eigen::Ref<const Points> points,
+        int n_threads = std::thread::hardware_concurrency()) const {
         if (robust) {
             Eigen::Matrix<bool, Eigen::Dynamic, 1> result(points.rows());
             maybe_parallel_for(
                 [&](int i) { result[i] = _raycast(points.row(i)) >= 0.0f; },
-                (int)points.rows());
+                (int)points.rows(),
+                n_threads);
             return result;
         } else {
-            Vector vals = calc(points, true);
+            Vector vals = calc(points, true, n_threads);
             return vals.array() >= 0;
         }
     }
@@ -368,17 +374,18 @@ Eigen::Ref<Points> SDF::verts_mutable() {
     return owned_verts;
 }
 
-Vector SDF::operator()(Eigen::Ref<const Points> points, bool trunc_aabb) const {
-    return p_impl->calc(points, trunc_aabb);
+Vector SDF::operator()(Eigen::Ref<const Points> points, bool trunc_aabb, int n_threads) const {
+    return p_impl->calc(points, trunc_aabb, n_threads);
 }
 
-Eigen::VectorXi SDF::nn(Eigen::Ref<const Points> points) const {
-    return p_impl->nn(points);
+Eigen::VectorXi SDF::nn(Eigen::Ref<const Points> points, int n_threads) const {
+    return p_impl->nn(points, n_threads);
 }
 
 Eigen::Matrix<bool, Eigen::Dynamic, 1> SDF::contains(
-    Eigen::Ref<const Points> points) const {
-    return p_impl->contains(points);
+    Eigen::Ref<const Points> points,
+    int n_threads) const {
+    return p_impl->contains(points, n_threads);
 }
 
 void SDF::update() { p_impl->update(); }

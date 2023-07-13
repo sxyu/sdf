@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <limits>
+#include <thread>
 #include "sdf/internal/RTree.h"
 #include "sdf/internal/sdf_util.hpp"
 
@@ -90,48 +91,52 @@ struct Renderer::Impl {
 
    public:
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_depth() const {
+    render_depth(int n_threads) const {
         return _render_image<float>(
             (FaceHandler<float>)&Impl::_depth_face_handler,
-            std::numeric_limits<float>::max(), true /* convert FLT_MAX to 0 */);
+            std::numeric_limits<float>::max(), true /* convert FLT_MAX to 0 */, false, n_threads);
     }
 
     Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_mask() const {
+    render_mask(int n_threads) const {
         return _render_image<bool>((FaceHandler<bool>)&Impl::_mask_face_handler,
-                                   false);
+                                   false,
+                                   false, false,
+                                   n_threads);
     }
 
     Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    render_nn(bool fill_outside) const {
+    render_nn(bool fill_outside, int n_threads) const {
         if (fill_outside && !kdtree_ready) {
             kd_tree.rebuild();
             kdtree_ready = true;
         }
         return _render_image<int>((FaceHandler<int>)&Impl::_vertex_face_handler,
-                                  -1, false, fill_outside);
+                                  -1, false, fill_outside, n_threads);
     }
 
-    Vector calc_depth(Eigen::Ref<const Points2D> points) const {
+    Vector calc_depth(Eigen::Ref<const Points2D> points, int n_threads) const {
         return _calc<float>(
             points, (FaceHandler<float>)&Impl::_depth_face_handler,
-            std::numeric_limits<float>::max(), true /* convert FLT_MAX to 0 */);
+            std::numeric_limits<float>::max(), true /* convert FLT_MAX to 0 */,
+            false, n_threads);
     }
 
     Eigen::Matrix<bool, Eigen::Dynamic, 1> calc_mask(
-        Eigen::Ref<const Points2D> points) const {
+        Eigen::Ref<const Points2D> points, int n_threads) const {
         return _calc<bool>(points, (FaceHandler<bool>)&Impl::_mask_face_handler,
-                           uint8_t(0));
+                           uint8_t(0), false, false, n_threads);
     }
 
     Eigen::VectorXi calc_vertex(Eigen::Ref<const Points2D> points,
-                                bool fill_outside) const {
+                                bool fill_outside,
+                                int n_threads) const {
         if (fill_outside && !kdtree_ready) {
             kd_tree.rebuild();
             kdtree_ready = true;
         }
         return _calc<int>(points, (FaceHandler<int>)&Impl::_vertex_face_handler,
-                          -1, false, fill_outside);
+                          -1, false, fill_outside, n_threads);
     }
 
     // Input vertices
@@ -172,7 +177,8 @@ struct Renderer::Impl {
     Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
     _render_image(FaceHandler<T> face_handler, T init_val,
                   bool max_to_zero = false,
-                  bool fill_outside_nn = false) const {
+                  bool fill_outside_nn = false,
+                  int n_threads = std::thread::hardware_concurrency()) const {
         Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
             result(height, width);
         result.setConstant(init_val);
@@ -197,15 +203,18 @@ struct Renderer::Impl {
                     data = static_cast<int>(index);
                 }
             },
-            width * height);
+            width * height,
+            n_threads);
         return result;
     }
 
     template <class T>
     Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> _calc(
         const Eigen::Ref<const Points2D>& points, FaceHandler<T> face_handler,
-        T init_val, bool max_to_zero = false,
-        bool fill_outside_nn = false) const {
+        T init_val,
+        bool max_to_zero = false,
+        bool fill_outside_nn = false,
+        int n_threads = std::thread::hardware_concurrency()) const {
         Eigen::Matrix<T, Eigen::Dynamic, 1> result(points.rows());
         result.setConstant(init_val);
         maybe_parallel_for(
@@ -227,7 +236,8 @@ struct Renderer::Impl {
                     data = static_cast<T>(index);
                 }
             },
-            result.rows());
+            result.rows(),
+            n_threads);
         return result;
     }
 
@@ -259,18 +269,18 @@ Renderer::Renderer(Eigen::Ref<const Points> verts,
 }
 
 Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-Renderer::render_depth() const {
-    return p_impl->render_depth();
+Renderer::render_depth(int n_threads) const {
+    return p_impl->render_depth(n_threads);
 }
 
 Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-Renderer::render_mask() const {
-    return p_impl->render_mask();
+Renderer::render_mask(int n_threads) const {
+    return p_impl->render_mask(n_threads);
 }
 
 Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-Renderer::render_nn(bool fill_outside) const {
-    return p_impl->render_nn(fill_outside);
+Renderer::render_nn(bool fill_outside, int n_threads) const {
+    return p_impl->render_nn(fill_outside, n_threads);
 }
 
 void Renderer::update() { p_impl->update(); }
@@ -293,18 +303,19 @@ Eigen::Ref<Points> Renderer::verts_mutable() {
     return owned_verts;
 }
 
-Vector Renderer::operator()(Eigen::Ref<const Points2D> points) const {
-    return p_impl->calc_depth(points);
+Vector Renderer::operator()(Eigen::Ref<const Points2D> points, int n_threads) const {
+    return p_impl->calc_depth(points, n_threads);
 }
 
 Eigen::Matrix<bool, Eigen::Dynamic, 1> Renderer::contains(
-    Eigen::Ref<const Points2D> points) const {
-    return p_impl->calc_mask(points);
+    Eigen::Ref<const Points2D> points, int n_threads) const {
+    return p_impl->calc_mask(points, n_threads);
 }
 
 Eigen::VectorXi Renderer::nn(Eigen::Ref<const Points2D> points,
-                             bool fill_outside) const {
-    return p_impl->calc_vertex(points, fill_outside);
+                             bool fill_outside,
+                             int n_threads) const {
+    return p_impl->calc_vertex(points, fill_outside, n_threads);
 }
 
 Renderer::~Renderer() = default;
