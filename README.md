@@ -123,7 +123,7 @@ In non-robust mode we use nearest surface normal to check containment.
     - meshview https://github.com/sxyu/meshview for demo
 
 ## Build + Install
-`mkdir build && cmake .. && make -j4 && sudo make install`
+`mkdir build && cd build && cmake .. && make -j4 && sudo make install`
 
 ## Demo
 A demo program can optionally be built, if meshview is installed.
