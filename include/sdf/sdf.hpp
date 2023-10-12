@@ -51,6 +51,73 @@ using Vector = Eigen::Matrix<float, Eigen::Dynamic, 1>;
 namespace util {
 
 template <class T>
+// Find barycentric coords of p in triangle (a,b,c) in 3D
+// (p does NOT have to be projected to plane beforehand)
+// normal, area_abc to be computed using util::normal,
+// where normal is normalized vector, area is magnitude
+Eigen::Matrix<T, 1, 3, Eigen::RowMajor> bary(
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
+    float area_abc) {
+
+    Eigen::Matrix<T, 1, 3> u = b - a;
+    Eigen::Matrix<T, 1, 3> v = c - a;
+    Eigen::Matrix<T, 1, 3> w = p - a;
+    Eigen::Matrix<T, 1, 3> n = u.cross(v);
+    T n_sq_norm = n.dot(n) + T(1e-5);
+    Eigen::Matrix<T, 1, 3> uvw;
+    uvw[2] = u.cross(w).dot(n) / n_sq_norm;
+    uvw[1] = w.cross(v).dot(n) / n_sq_norm;
+    uvw[0] = T(1.0) - uvw[1] - uvw[2];
+
+    return uvw;
+}
+
+// 3D point to line segment shortest distance gradient
+template <class T>
+Eigen::Matrix<T, 1, 3> point2lineseggrad(
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b) {
+    Eigen::Matrix<T, 1, 3> ap = p - a, ab = b - a;
+    T t = ap.dot(ab) / (ab.squaredNorm() + T(1e-5));
+    t = std::max(T(0.0), std::min(T(1.0), t));
+    return (ap - t * ab);
+}
+
+template <class T>
+// 3D point to triangle shortest distance gradient
+// normal, area_abc to be computed using util::normal,
+// where normal is normalized vector, area is magnitude
+Eigen::Matrix<T, 1, 3> point2trigrad(
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
+    float area) {
+    const Eigen::Matrix<T, 1, 3> uvw = bary<T>(p, a, b, c, normal, area);
+    Eigen::Matrix<T, 1, 3> grad;
+
+    if (uvw[0] < 0) {
+        grad = point2lineseggrad<T>(p, b, c);
+    } else if (uvw[1] < 0) {
+        grad = point2lineseggrad<T>(p, a, c);
+    } else if (uvw[2] < 0) {
+        grad = point2lineseggrad<T>(p, a, b);
+    } else {
+        grad = (uvw[0] * a + uvw[1] * b + uvw[2] * c - p);
+    }
+
+    if ( grad.squaredNorm() > T(1e5) )
+        grad = (a + b + c) / T(3.) - p;
+    return grad;
+}
+
+template <class T>
 // 3D point to line shortest distance SQUARED
 T dist_point2line(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
@@ -66,10 +133,8 @@ T dist_point2lineseg(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b) {
-    Eigen::Matrix<T, 1, 3> ap = p - a, ab = b - a;
-    T t = ap.dot(ab) / ab.squaredNorm();
-    t = std::max(T(0.0), std::min(T(1.0), t));
-    return (ap - t * ab).squaredNorm();
+    Eigen::Matrix<T, 1, 3> grad = point2lineseggrad(p, a, b);
+    return grad.squaredNorm();
 }
 
 template <class T>
@@ -80,28 +145,6 @@ const Eigen::Matrix<T, 1, 3, Eigen::RowMajor> normal(
     return (b - a).cross(c - a);
 }
 
-template <class T>
-// Find barycentric coords of p in triangle (a,b,c) in 3D
-// (p does NOT have to be projected to plane beforehand)
-// normal, area_abc to be computed using util::normal,
-// where normal is normalized vector, area is magnitude
-Eigen::Matrix<T, 1, 3, Eigen::RowMajor> bary(
-    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& p,
-    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
-    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
-    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
-    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
-    float area_abc) {
-    float area_pbc = normal.dot((b - p).cross(c - p));
-    float area_pca = normal.dot((c - p).cross(a - p));
-
-    Eigen::Matrix<T, 1, 3> uvw;
-    uvw.x() = area_pbc / area_abc;
-    uvw.y() = area_pca / area_abc;
-    uvw.z() = T(1.0) - uvw.x() - uvw.y();
-
-    return uvw;
-}
 
 template <class T>
 // 3D point to triangle shortest distance SQUARED
@@ -114,16 +157,8 @@ T dist_point2tri(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
     float area) {
-    const Eigen::Matrix<T, 1, 3> uvw = bary<T>(p, a, b, c, normal, area);
-    if (uvw[0] < 0) {
-        return dist_point2lineseg<T>(p, b, c);
-    } else if (uvw[1] < 0) {
-        return dist_point2lineseg<T>(p, a, c);
-    } else if (uvw[2] < 0) {
-        return dist_point2lineseg<T>(p, a, b);
-    } else {
-        return (uvw[0] * a + uvw[1] * b + uvw[2] * c - p).squaredNorm();
-    }
+    Eigen::Matrix<T, 1, 3> grad = point2trigrad(p, a, b, c, normal, area);
+    return grad.squaredNorm();
 }
 
 template <class T>
@@ -165,7 +200,7 @@ struct SDF {
     // @param copy whether to make a copy of the data instead of referencing it
     // SDF/containment computation is robust to mesh self-intersections and
     // facewinding but is slower.
-    SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
+    SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces, 
         bool robust = true, bool copy = false);
     ~SDF();
 
@@ -186,7 +221,7 @@ struct SDF {
     // mesh may be flipped.
     Vector operator()(Eigen::Ref<const Points> points,
                       bool trunc_aabb = false,
-                      int n_threads = std::thread::hardware_concurrency()) const;
+                      int n_threads = std::thread::hardware_concurrency());
 
     // Return exact nearest neighbor vertex index for each point (index as in
     // input verts)
@@ -201,7 +236,7 @@ struct SDF {
     // has self-intersections.
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
         Eigen::Ref<const Points> points,
-        int n_threads = std::thread::hardware_concurrency()) const;
+        int n_threads = std::thread::hardware_concurrency());
 
     // Call if vertex positions have been updated to rebuild the KD tree
     // and update face normals+areas
@@ -226,6 +261,9 @@ struct SDF {
     // normal of face i (from faces passed to constructor) is in row i
     const Points& face_normals() const;
 
+    // Get matrix of point gradients, shape (n_points, 3).
+    const Points& point_gradients() const;
+
     // Get AABB of entire mesh, shape (6).
     // (minx, miny, minz, maxx, maxy, maxz)
     Eigen::Ref<const Eigen::Matrix<float, 6, 1>> aabb() const;
@@ -248,6 +286,7 @@ struct SDF {
     // Optional owned data
     Points owned_verts;
     Triangles owned_faces;
+
 
     struct Impl;
 #ifdef __GNUC__

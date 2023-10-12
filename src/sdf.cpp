@@ -14,7 +14,7 @@
 namespace sdf {
 
 struct SDF::Impl {
-    Impl(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
+    Impl(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces, 
          bool robust)
         : verts(verts), faces(faces), robust(robust), kd_tree(verts) {
         face_normal.resize(faces.rows(), face_normal.ColsAtCompileTime);
@@ -24,7 +24,6 @@ struct SDF::Impl {
             for (int j = 0; j < faces.ColsAtCompileTime; ++j)
                 adj_faces[faces(i, j)].push_back(i);
         }
-
         update(false);
     }
 
@@ -64,9 +63,12 @@ struct SDF::Impl {
                 rtree.Insert(face_aabb_min.data(), face_aabb_max.data(), i);
             }
 
-            face_normal.row(i).noalias() = util::normal<float>(va, vb, vc);
-            face_area[i] = face_normal.row(i).norm();
-            face_normal.row(i) /= face_area[i];
+            if (robust)
+            {
+                face_normal.row(i).noalias() = util::normal<float>(va, vb, vc);
+                face_area[i] = face_normal.row(i).norm();
+                face_normal.row(i) /= face_area[i];
+            }
         }
         total_area = face_area.sum();
         face_area_cum.resize(0);
@@ -92,9 +94,10 @@ struct SDF::Impl {
 
     Vector calc(Eigen::Ref<const Points> points,
                 bool trunc_aabb = false,
-                int n_threads = std::thread::hardware_concurrency()) const {
+                int n_threads = std::thread::hardware_concurrency()) {
         Vector result(points.rows());
         result.setConstant(std::numeric_limits<float>::max());
+        point_gradients.resize(points.rows(), face_normal.ColsAtCompileTime);
 
         const float DIST_EPS = robust ? 0.f : 1e-5f;
 
@@ -110,6 +113,7 @@ struct SDF::Impl {
                 if (robust) sign = _raycast(point);
 
                 float& min_dist = result[i];
+                
                 if (trunc_aabb) {
                     // Only care about sign being correct, so we can use
                     // AABB
@@ -126,31 +130,30 @@ struct SDF::Impl {
                 kd_tree.index->findNeighbors(result_set, point.data(),
                                              nanoflann::SearchParams(10));
 
-                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> avg_normal;
-                if (!robust) avg_normal.setZero();
-                Eigen::Matrix<float, 3, 3, Eigen::RowMajor> face_tri;
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> min_gradient;
                 for (int faceid : adj_faces[neighb_index]) {
                     const auto face = faces.row(faceid);
 
                     const auto normal = face_normal.row(faceid);
-                    const float tridist = util::dist_point2tri<float>(
+                    const auto trigradient = util::point2trigrad<float>(
                         point, verts.row(face(0)), verts.row(face(1)),
                         verts.row(face(2)), normal, face_area[faceid]);
+                    const float tridist = trigradient.squaredNorm();
                     if (tridist < min_dist - DIST_EPS) {
+                        min_gradient = trigradient;
                         min_dist = tridist;
-                        if (!robust) avg_normal.noalias() = normal;
-                    } else if (!robust && tridist < min_dist + DIST_EPS) {
-                        avg_normal.noalias() += normal;
                     }
                 }
                 min_dist = std::sqrt(min_dist);
                 if (robust) {
                     min_dist *= sign;
-                } else if (avg_normal.dot(point - verts.row(neighb_index)) >
+                } else if (min_gradient.dot(point - verts.row(neighb_index)) >
                            0) {
                     // Outside, by normal
                     min_dist = -min_dist;
                 }
+
+                point_gradients.row(i).noalias() = min_gradient;
             },
             (int)points.rows(),
             n_threads);
@@ -159,7 +162,7 @@ struct SDF::Impl {
 
     Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
         Eigen::Ref<const Points> points,
-        int n_threads = std::thread::hardware_concurrency()) const {
+        int n_threads = std::thread::hardware_concurrency()) {
         if (robust) {
             Eigen::Matrix<bool, Eigen::Dynamic, 1> result(points.rows());
             maybe_parallel_for(
@@ -242,6 +245,8 @@ struct SDF::Impl {
 
     // Stores face normals [n_face, 3]
     Points face_normal;
+    // Stores gradients for each queried point [n_points, 3]
+    Points point_gradients;
     // Stores face areas [n_face]
     Vector face_area;
     // Cumulative face areas for sampling [n_face]
@@ -352,6 +357,8 @@ const Vector& SDF::face_areas() const { return p_impl->face_area; }
 
 const Points& SDF::face_normals() const { return p_impl->face_normal; }
 
+const Points& SDF::point_gradients() const { return p_impl->point_gradients; }
+
 Eigen::Ref<const Eigen::Matrix<float, 6, 1>> SDF::aabb() const {
     return p_impl->aabb.transpose();
 }
@@ -374,7 +381,7 @@ Eigen::Ref<Points> SDF::verts_mutable() {
     return owned_verts;
 }
 
-Vector SDF::operator()(Eigen::Ref<const Points> points, bool trunc_aabb, int n_threads) const {
+Vector SDF::operator()(Eigen::Ref<const Points> points, bool trunc_aabb, int n_threads) {
     return p_impl->calc(points, trunc_aabb, n_threads);
 }
 
@@ -384,7 +391,7 @@ Eigen::VectorXi SDF::nn(Eigen::Ref<const Points> points, int n_threads) const {
 
 Eigen::Matrix<bool, Eigen::Dynamic, 1> SDF::contains(
     Eigen::Ref<const Points> points,
-    int n_threads) const {
+    int n_threads) {
     return p_impl->contains(points, n_threads);
 }
 

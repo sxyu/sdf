@@ -49,6 +49,8 @@ PYBIND11_MODULE(pysdf, m) {
                                "Mesh faces passed to SDF constructor")
         .def_property_readonly("verts", &SDF::verts,
                                "Mesh vertices passed to SDF constructor")
+        .def_property_readonly("point_gradients", &SDF::point_gradients,
+                               "Gradient at each queried point calculated at the last pass of __call__")
         .def_property(
             "faces_mutable", &SDF::faces_mutable,
             [](SDF& sdf, Eigen::Ref<const Triangles> val) {
@@ -190,6 +192,16 @@ PYBIND11_MODULE(pysdf, m) {
                 return util::dist_point2tri<float>(p, a, b, c, normal, area);
             },
             "Compute 3d point-triangle squared distance")
+        .def(
+            "point2trigrad",
+            [](RefConstRowVec3f& p, RefConstRowVec3f& a, RefConstRowVec3f& b,
+               RefConstRowVec3f& c) {
+                auto normal = util::normal<float>(a, b, c);
+                float area = normal.norm();
+                normal /= area;
+                return util::point2trigrad<float>(p, a, b, c, normal, area);
+            },
+            "Compute 3d point to triangle gradient")
         .def("bary2d", &util::bary2d<float>,
              "Test if point is in triangle (2d)");
     m.attr("num_threads") = DEFAULT_NUM_THREADS;
