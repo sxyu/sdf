@@ -85,7 +85,7 @@ Eigen::Matrix<T, 1, 3> point2lineseggrad(
     Eigen::Matrix<T, 1, 3> ap = p - a, ab = b - a;
     T t = ap.dot(ab) / (ab.squaredNorm() + T(1e-5));
     t = std::max(T(0.0), std::min(T(1.0), t));
-    return (ap - t * ab);
+    return (t * ab - ap);
 }
 
 template <class T>
@@ -105,7 +105,7 @@ Eigen::Matrix<T, 1, 3> point2trigrad(
     if (uvw[0] < 0) {
         grad = point2lineseggrad<T>(p, b, c);
     } else if (uvw[1] < 0) {
-        grad = point2lineseggrad<T>(p, a, c);
+        grad = point2lineseggrad<T>(p, c, a);
     } else if (uvw[2] < 0) {
         grad = point2lineseggrad<T>(p, a, b);
     } else {
