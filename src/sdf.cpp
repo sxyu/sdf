@@ -98,6 +98,7 @@ struct SDF::Impl {
         Vector result(points.rows());
         result.setConstant(std::numeric_limits<float>::max());
         point_gradients.resize(points.rows(), face_normal.ColsAtCompileTime);
+        point_triangle_normals.resize(points.rows(), face_normal.ColsAtCompileTime);
 
         const float DIST_EPS = robust ? 0.f : 1e-5f;
 
@@ -131,16 +132,18 @@ struct SDF::Impl {
                                              nanoflann::SearchParams(10));
 
                 Eigen::Matrix<float, 1, 3, Eigen::RowMajor> min_gradient;
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> min_triangle_normal;
                 for (int faceid : adj_faces[neighb_index]) {
                     const auto face = faces.row(faceid);
 
-                    const auto normal = face_normal.row(faceid);
+                    Eigen::Matrix<float, 1, 3, Eigen::RowMajor> trinormal; trinormal.setZero();
                     const auto trigradient = util::point2trigrad<float>(
                         point, verts.row(face(0)), verts.row(face(1)),
-                        verts.row(face(2)), normal, face_area[faceid]);
+                        verts.row(face(2)), &trinormal, face_area[faceid]);
                     const float tridist = trigradient.squaredNorm();
                     if (tridist < min_dist - DIST_EPS) {
                         min_gradient = trigradient;
+                        min_triangle_normal = trinormal;
                         min_dist = tridist;
                     }
                 }
@@ -154,6 +157,7 @@ struct SDF::Impl {
                 }
 
                 point_gradients.row(i).noalias() = min_gradient;
+                point_triangle_normals.row(i).noalias() = min_triangle_normal;
             },
             (int)points.rows(),
             n_threads);
@@ -247,6 +251,8 @@ struct SDF::Impl {
     Points face_normal;
     // Stores gradients for each queried point [n_points, 3]
     Points point_gradients;
+    // Stores normal of the triangle retained for each queried point [n_points, 3]
+    Points point_triangle_normals;
     // Stores face areas [n_face]
     Vector face_area;
     // Cumulative face areas for sampling [n_face]
@@ -358,6 +364,8 @@ const Vector& SDF::face_areas() const { return p_impl->face_area; }
 const Points& SDF::face_normals() const { return p_impl->face_normal; }
 
 const Points& SDF::point_gradients() const { return p_impl->point_gradients; }
+
+const Points& SDF::point_triangle_normals() const { return p_impl->point_triangle_normals; }
 
 Eigen::Ref<const Eigen::Matrix<float, 6, 1>> SDF::aabb() const {
     return p_impl->aabb.transpose();

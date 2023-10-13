@@ -51,6 +51,8 @@ PYBIND11_MODULE(pysdf, m) {
                                "Mesh vertices passed to SDF constructor")
         .def_property_readonly("point_gradients", &SDF::point_gradients,
                                "Gradient at each queried point calculated at the last pass of __call__")
+        .def_property_readonly("point_triangle_normals", &SDF::point_triangle_normals,
+                               "Normal of the retained triangle at each queried point calculated at the last pass of __call__")
         .def_property(
             "faces_mutable", &SDF::faces_mutable,
             [](SDF& sdf, Eigen::Ref<const Triangles> val) {
@@ -186,20 +188,17 @@ PYBIND11_MODULE(pysdf, m) {
             "dist_point2tri",
             [](RefConstRowVec3f& p, RefConstRowVec3f& a, RefConstRowVec3f& b,
                RefConstRowVec3f& c) {
-                auto normal = util::normal<float>(a, b, c);
-                float area = normal.norm();
-                normal /= area;
-                return util::dist_point2tri<float>(p, a, b, c, normal, area);
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> tmp;
+                float d = util::dist_point2tri<float>(p, a, b, c, tmp, 0);
+                return d;
             },
             "Compute 3d point-triangle squared distance")
         .def(
             "point2trigrad",
             [](RefConstRowVec3f& p, RefConstRowVec3f& a, RefConstRowVec3f& b,
                RefConstRowVec3f& c) {
-                auto normal = util::normal<float>(a, b, c);
-                float area = normal.norm();
-                normal /= area;
-                return util::point2trigrad<float>(p, a, b, c, normal, area);
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> tmp;
+                return util::point2trigrad<float>(p, a, b, c, &tmp, 0);
             },
             "Compute 3d point to triangle gradient")
         .def("bary2d", &util::bary2d<float>,
