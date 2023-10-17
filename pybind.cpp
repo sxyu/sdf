@@ -188,17 +188,21 @@ PYBIND11_MODULE(pysdf, m) {
             "dist_point2tri",
             [](RefConstRowVec3f& p, RefConstRowVec3f& a, RefConstRowVec3f& b,
                RefConstRowVec3f& c) {
-                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> tmp;
-                float d = util::dist_point2tri<float>(p, a, b, c, tmp, 0);
-                return d;
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> normal = 
+                    util::triangle_normal(a, b, c);
+                float area = std::sqrt(normal.dot(normal));
+                return util::dist_point2tri<float>(p, a, b, c, normal, area);
             },
             "Compute 3d point-triangle squared distance")
         .def(
             "point2trigrad",
             [](RefConstRowVec3f& p, RefConstRowVec3f& a, RefConstRowVec3f& b,
                RefConstRowVec3f& c) {
-                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> tmp;
-                return util::point2trigrad<float>(p, a, b, c, &tmp, 0);
+                Eigen::Matrix<float, 1, 3, Eigen::RowMajor> normal = 
+                    util::triangle_normal(a, b, c);
+                float area = std::sqrt(normal.dot(normal));
+                bool tmp;
+                return util::point2trigrad<float>(p, a, b, c, normal, area, &tmp);
             },
             "Compute 3d point to triangle gradient")
         .def("bary2d", &util::bary2d<float>,

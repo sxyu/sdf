@@ -63,12 +63,11 @@ struct SDF::Impl {
                 rtree.Insert(face_aabb_min.data(), face_aabb_max.data(), i);
             }
 
-            if (robust)
-            {
-                face_normal.row(i).noalias() = util::normal<float>(va, vb, vc);
-                face_area[i] = face_normal.row(i).norm();
-                face_normal.row(i) /= face_area[i];
-            }
+            auto this_face_normal = util::triangle_normal<float>(va, vb, vc);
+            float this_face_area = this_face_normal.norm();
+            face_normal.row(i).noalias() = this_face_normal;
+            face_area[i] = this_face_area;
+            face_normal.row(i) /= this_face_area;
         }
         total_area = face_area.sum();
         face_area_cum.resize(0);
@@ -132,19 +131,23 @@ struct SDF::Impl {
                                              nanoflann::SearchParams(10));
 
                 Eigen::Matrix<float, 1, 3, Eigen::RowMajor> min_gradient;
+
                 Eigen::Matrix<float, 1, 3, Eigen::RowMajor> min_triangle_normal;
                 for (int faceid : adj_faces[neighb_index]) {
                     const auto face = faces.row(faceid);
-
-                    Eigen::Matrix<float, 1, 3, Eigen::RowMajor> trinormal; trinormal.setZero();
+                    const auto this_face_normal = face_normal.row(faceid);
+                    bool isin_triangle = false;
                     const auto trigradient = util::point2trigrad<float>(
                         point, verts.row(face(0)), verts.row(face(1)),
-                        verts.row(face(2)), &trinormal, face_area[faceid]);
+                        verts.row(face(2)), this_face_normal, face_area[faceid], &isin_triangle);
                     const float tridist = trigradient.squaredNorm();
                     if (tridist < min_dist - DIST_EPS) {
                         min_gradient = trigradient;
-                        min_triangle_normal = trinormal;
                         min_dist = tridist;
+                        if (isin_triangle)
+                            min_triangle_normal = this_face_normal;
+                        else
+                            min_triangle_normal.setZero();
                     }
                 }
                 min_dist = std::sqrt(min_dist);

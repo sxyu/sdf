@@ -50,6 +50,17 @@ using Vector = Eigen::Matrix<float, Eigen::Dynamic, 1>;
 
 namespace util {
 
+
+template <class T>
+Eigen::Matrix<T, 1, 3, Eigen::RowMajor> triangle_normal(
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
+    const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c) {
+    Eigen::Matrix<T, 1, 3> u = b - a;
+    Eigen::Matrix<T, 1, 3> v = c - a;
+    return u.cross(v);
+}
+
 template <class T>
 // Find barycentric coords of p in triangle (a,b,c) in 3D
 // (p does NOT have to be projected to plane beforehand)
@@ -66,11 +77,10 @@ Eigen::Matrix<T, 1, 3, Eigen::RowMajor> bary(
     Eigen::Matrix<T, 1, 3> u = b - a;
     Eigen::Matrix<T, 1, 3> v = c - a;
     Eigen::Matrix<T, 1, 3> w = p - a;
-    Eigen::Matrix<T, 1, 3> n = u.cross(v);
-    T n_sq_norm = n.dot(n) + T(1e-5);
+    Eigen::Matrix<T, 1, 3> n = normal;
     Eigen::Matrix<T, 1, 3> uvw;
-    uvw[2] = u.cross(w).dot(n) / n_sq_norm;
-    uvw[1] = w.cross(v).dot(n) / n_sq_norm;
+    uvw[2] = u.cross(w).dot(n) / (area_abc + T(1e-5));
+    uvw[1] = w.cross(v).dot(n) / (area_abc + T(1e-5));
     uvw[0] = T(1.0) - uvw[1] - uvw[2];
 
     return uvw;
@@ -98,10 +108,12 @@ Eigen::Matrix<T, 1, 3> point2trigrad(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
-    float area) {
+    float area,
+    bool* isin_triangle
+    ) {
     const Eigen::Matrix<T, 1, 3> uvw = bary<T>(p, a, b, c, normal, area);
     Eigen::Matrix<T, 1, 3> grad;
-
+    *isin_triangle = false;
     if (uvw[0] < 0) {
         grad = point2lineseggrad<T>(p, b, c);
     } else if (uvw[1] < 0) {
@@ -110,8 +122,8 @@ Eigen::Matrix<T, 1, 3> point2trigrad(
         grad = point2lineseggrad<T>(p, a, b);
     } else {
         grad = (uvw[0] * a + uvw[1] * b + uvw[2] * c - p);
+        *isin_triangle = true;
     }
-
     if ( grad.squaredNorm() > T(1e5) )
         grad = (a + b + c) / T(3.) - p;
     return grad;
@@ -134,7 +146,7 @@ T dist_point2lineseg(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& a,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& b) {
     Eigen::Matrix<T, 1, 3> grad = point2lineseggrad(p, a, b);
-    return grad.squaredNorm();
+    return grad.norm();
 }
 
 template <class T>
@@ -157,8 +169,9 @@ T dist_point2tri(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
     float area) {
-    Eigen::Matrix<T, 1, 3> grad = point2trigrad(p, a, b, c, normal, area);
-    return grad.squaredNorm();
+    bool tmp;
+    Eigen::Matrix<T, 1, 3> grad = point2trigrad(p, a, b, c, normal, area, &tmp);
+    return grad.norm();
 }
 
 template <class T>
@@ -263,6 +276,9 @@ struct SDF {
 
     // Get matrix of point gradients, shape (n_points, 3).
     const Points& point_gradients() const;
+
+    // Get matrix of triangle normals, shape (n_points, 3).
+    const Points& point_triangle_normals() const;
 
     // Get AABB of entire mesh, shape (6).
     // (minx, miny, minz, maxx, maxy, maxz)
