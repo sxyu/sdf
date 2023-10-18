@@ -92,16 +92,17 @@ Eigen::Matrix<T, 1, 3, Eigen::RowMajor> bary(
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& c,
     const Eigen::Ref<const Eigen::Matrix<T, 1, 3, Eigen::RowMajor>>& normal,
     float area_abc) {
-    float area_pbc = normal.dot((b - p).cross(c - p));
-    float area_pca = normal.dot((c - p).cross(a - p));
 
+    Eigen::Matrix<T, 1, 3> u = b - a;
+    Eigen::Matrix<T, 1, 3> v = c - a;
+    Eigen::Matrix<T, 1, 3> w = p - a;
+    Eigen::Matrix<T, 1, 3> n = normal;
     Eigen::Matrix<T, 1, 3> uvw;
-    uvw.x() = area_pbc / area_abc;
-    uvw.y() = area_pca / area_abc;
-    uvw.z() = T(1.0) - uvw.x() - uvw.y();
+    uvw[2] = u.cross(w).dot(n) / (area_abc + T(1e-5));
+    uvw[1] = w.cross(v).dot(n) / (area_abc + T(1e-5));
+    uvw[0] = T(1.0) - uvw[1] - uvw[2];
 
-    return uvw;
-}
+    return uvw;}
 
 template <class T>
 // 3D point to triangle shortest distance SQUARED
