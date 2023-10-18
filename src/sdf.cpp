@@ -126,14 +126,14 @@ struct SDF::Impl {
                     }
                 }
 
-                result_set.init(&neighb_index, &_dist);
-                kd_tree.index->findNeighbors(result_set, point.data(),
-                                             nanoflann::SearchParams(10));
+                // result_set.init(&neighb_index, &_dist);
+                // kd_tree.index->findNeighbors(result_set, point.data(),
+                //                              nanoflann::SearchParams(10));
 
                 Eigen::Matrix<float, 1, 3, Eigen::RowMajor> min_gradient;
 
                 Eigen::Matrix<float, 1, 3, Eigen::RowMajor> min_triangle_normal;
-                for (int faceid : adj_faces[neighb_index]) {
+                for (int faceid = 0; faceid < static_cast<int>(faces.rows()); faceid++) {
                     const auto face = faces.row(faceid);
                     const auto this_face_normal = face_normal.row(faceid);
                     bool isin_triangle = false;
